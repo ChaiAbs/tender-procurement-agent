@@ -1,15 +1,5 @@
 steps:
-  # Download RAG store from GCS into the build context
-  - name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
-    entrypoint: gsutil
-    args: ["-m", "cp", "-r", "gs://tender-agent-assets/rag_store", "."]
-
-  # Verify rag_store downloaded correctly
-  - name: ubuntu
-    entrypoint: ls
-    args: ["-la", "rag_store/"]
-
-  # Build with Kaniko cache
+  # Build with Kaniko cache (no RAG store — mounted from GCS at runtime)
   - name: gcr.io/kaniko-project/executor:latest
     args:
       - --destination=australia-southeast1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/tender-agent:$COMMIT_SHA
@@ -18,7 +8,7 @@ steps:
       - --cache-ttl=168h
       - --cache-repo=australia-southeast1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/tender-agent/cache
 
-  # Deploy to Cloud Run
+  # Deploy to Cloud Run with GCS volume mount for RAG store
   - name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
     entrypoint: gcloud
     args:
@@ -31,6 +21,8 @@ steps:
       - --memory=2Gi
       - --timeout=120
       - --set-secrets=ANTHROPIC_API_KEY=anthropic-api-key:latest
+      - --add-volume=name=rag-store,type=cloud-storage,bucket=tender-agent-assets
+      - --add-volume-mount=volume=rag-store,mount-path=/app/rag_store
 
 options:
   logging: CLOUD_LOGGING_ONLY
