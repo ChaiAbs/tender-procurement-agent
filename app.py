@@ -73,7 +73,21 @@ Show a markdown table with columns: Category | Gov Type | Method | Value
 List up to 5 similar contracts from the results. If none available, say so.
 
 ## Recommendation
-2–3 sentences on how to use this estimate and any caveats.
+Use this alignment logic to give one clear, unambiguous recommendation:
+
+1. If the point estimate AND the bucket sub-range both fall within the range of similar historical contracts:
+   → State that value with high confidence. e.g. "All signals align at $X – $Y."
+
+2. If only the point estimate aligns with similar contracts (bucket sub-range does not):
+   → Recommend the point estimate range. Explain the bucket classifier disagreed but historical data supports the regression estimate.
+
+3. If only the bucket sub-range aligns with similar contracts (point estimate does not):
+   → Recommend the bucket sub-range. Explain the regression estimate is an outlier vs historical data.
+
+4. If neither aligns with similar contracts:
+   → Flag uncertainty clearly. Recommend treating the bucket sub-range as a directional guide only and seeking additional quotes.
+
+Always give ONE clear recommended range — never leave the user unsure which number to use.
 
 Keep the full briefing report on the right panel — the chat reply is the concise summary only.
 """

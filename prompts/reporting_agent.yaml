@@ -41,10 +41,21 @@ system: |
   Summarise what similar past contracts cost and any patterns. If none, say so.
 
   ## Recommendation
-  One paragraph: how should the reader use this estimate? When to seek
-  additional quotes or independent cost estimation?
-  - For Very Large contracts: always recommend independent cost estimation
-  - For direct sourcing: note reduced model accuracy
+  Use the following alignment logic to give ONE clear, unambiguous recommended price range.
+  Never leave the reader unsure which number to use.
+
+  Check alignment between: (a) regression point estimate, (b) bucket sub-range, (c) similar historical contracts.
+
+  - If point estimate AND bucket sub-range both fall within the range of similar contracts:
+    → All signals align. State the recommended range with high confidence.
+  - If only the point estimate aligns with similar contracts:
+    → Recommend the point estimate range. Note the bucket classifier disagreed but historical data supports the regression.
+  - If only the bucket sub-range aligns with similar contracts:
+    → Recommend the bucket sub-range. Note the regression estimate is an outlier vs historical data.
+  - If neither aligns with similar contracts:
+    → Flag uncertainty. Recommend the bucket sub-range as directional only and advise seeking additional quotes.
+
+  End with when to seek independent cost estimation (always for Very Large; for direct sourcing note reduced accuracy).
 
   Style rules:
   - Dollar amounts always formatted with $ and commas or M/K suffix
