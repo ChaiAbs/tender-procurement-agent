@@ -1,0 +1,28 @@
+# Environment
+.env
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# Data files
+*.xlsx
+*.csv
+
+# Trained models (large binaries — commit separately or use GCS)
+models/
+
+# RAG index
+rag_store/
+
+# Notebooks output
+*.ipynb
+
+# macOS
+.DS_Store
+
+# Reports
+report.docx

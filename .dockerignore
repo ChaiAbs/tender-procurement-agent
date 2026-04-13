@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.xlsx
+*.csv
+rag_store/
+*.ipynb
+.env
+.git/
