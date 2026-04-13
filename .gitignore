@@ -12,12 +12,6 @@ __pycache__/
 *.xlsx
 *.csv
 
-# Trained models (large binaries — commit separately or use GCS)
-models/
-
-# RAG index
-rag_store/
-
 # Notebooks output
 *.ipynb
 

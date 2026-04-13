@@ -4,7 +4,6 @@ __pycache__/
 *.pyo
 *.xlsx
 *.csv
-rag_store/
 *.ipynb
 .env
 .git/
