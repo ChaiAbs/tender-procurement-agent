@@ -59,9 +59,23 @@ Guidelines:
 - If a field cannot be determined, use "unknown".
 - Once you have at least procurement_method, disposition, is_consultancy_services,
   and publisher_gov_type, call predict_contract (use "unknown" for the rest).
-- After getting the prediction, present the key findings clearly in plain language.
-  Do not repeat the raw JSON — summarise: bucket, sub-range, point estimate, confidence.
-- Keep responses concise. The full report is shown separately.
+
+After getting the prediction, reply with exactly these three sections:
+
+## Price Prediction
+- **Predicted range:** the sub-range (e.g. $50K – $150K)
+- **Price bucket:** Small / Medium / Large / Very Large with confidence %
+- **Point estimate:** regression value in AUD
+- **Confidence:** High / Medium / Low / Very Low and a one-line reason
+
+## Similar Historical Contracts
+Show a markdown table with columns: Category | Gov Type | Method | Value
+List up to 5 similar contracts from the results. If none available, say so.
+
+## Recommendation
+2–3 sentences on how to use this estimate and any caveats.
+
+Keep the full briefing report on the right panel — the chat reply is the concise summary only.
 """
 
 TOOLS = [
@@ -189,11 +203,23 @@ def chat(req: ChatRequest):
             try:
                 ml_results = _run_ml_prediction(contract)
                 prediction = ml_results
-                report     = _run_langchain_report(contract, ml_results)
+
+                # Fetch similar contracts for the chat summary table
+                try:
+                    from tools.rag_tools import search_similar_contracts
+                    similar_raw = search_similar_contracts.invoke({"contract_json": json.dumps(contract)})
+                    similar = json.loads(similar_raw)
+                    if isinstance(similar, dict) and "error" in similar:
+                        similar = []
+                except Exception:
+                    similar = []
+
+                report = _run_langchain_report(contract, ml_results)
                 tool_output = json.dumps({
-                    "regression": ml_results.get("regression", {}),
-                    "bucket":     ml_results.get("bucket", {}),
-                    "validation": ml_results.get("validation", {}),
+                    "regression":       ml_results.get("regression", {}),
+                    "bucket":           ml_results.get("bucket", {}),
+                    "validation":       ml_results.get("validation", {}),
+                    "similar_contracts": similar,
                 })
             except Exception as exc:
                 tool_output = json.dumps({"error": str(exc)})
