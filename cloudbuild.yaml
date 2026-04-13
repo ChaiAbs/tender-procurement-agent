@@ -4,13 +4,19 @@ steps:
     entrypoint: gsutil
     args: ["-m", "cp", "-r", "gs://tender-agent-assets/rag_store", "."]
 
+  # Verify rag_store downloaded correctly
+  - name: ubuntu
+    entrypoint: ls
+    args: ["-la", "rag_store/"]
+
   # Build with Kaniko cache
   - name: gcr.io/kaniko-project/executor:latest
     args:
-      - --destination=gcr.io/$PROJECT_ID/tender-agent:$COMMIT_SHA
-      - --destination=gcr.io/$PROJECT_ID/tender-agent:latest
+      - --destination=australia-southeast1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/tender-agent:$COMMIT_SHA
+      - --destination=australia-southeast1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/tender-agent:latest
       - --cache=true
       - --cache-ttl=168h
+      - --cache-repo=australia-southeast1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/tender-agent/cache
 
   # Deploy to Cloud Run
   - name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
@@ -19,7 +25,7 @@ steps:
       - run
       - deploy
       - tender-agent
-      - --image=gcr.io/$PROJECT_ID/tender-agent:$COMMIT_SHA
+      - --image=australia-southeast1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/tender-agent:$COMMIT_SHA
       - --region=australia-southeast1
       - --allow-unauthenticated
       - --memory=2Gi
@@ -28,3 +34,4 @@ steps:
 
 options:
   logging: CLOUD_LOGGING_ONLY
+  machineType: E2_HIGHCPU_8
