@@ -1,0 +1,25 @@
+steps:
+  # Build with Kaniko cache
+  - name: gcr.io/kaniko-project/executor:latest
+    args:
+      - --destination=gcr.io/$PROJECT_ID/tender-agent:$COMMIT_SHA
+      - --destination=gcr.io/$PROJECT_ID/tender-agent:latest
+      - --cache=true
+      - --cache-ttl=168h
+
+  # Deploy to Cloud Run
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - tender-agent
+      - --image=gcr.io/$PROJECT_ID/tender-agent:$COMMIT_SHA
+      - --region=australia-southeast1
+      - --allow-unauthenticated
+      - --memory=2Gi
+      - --timeout=120
+      - --set-secrets=ANTHROPIC_API_KEY=anthropic-api-key:latest
+
+options:
+  logging: CLOUD_LOGGING_ONLY
