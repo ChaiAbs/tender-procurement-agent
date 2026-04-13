@@ -1,4 +1,9 @@
 steps:
+  # Download RAG store from GCS into the build context
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gsutil
+    args: ["-m", "cp", "-r", "gs://tender-agent-assets/rag_store", "."]
+
   # Build with Kaniko cache
   - name: gcr.io/kaniko-project/executor:latest
     args:

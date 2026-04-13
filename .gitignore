@@ -8,6 +8,9 @@ __pycache__/
 *.pyo
 *.egg-info/
 
+# RAG index (stored in GCS — see cloudbuild.yaml)
+rag_store/
+
 # Data files
 *.xlsx
 *.csv
