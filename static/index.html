@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Tender Price Prediction</title>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -256,6 +257,13 @@
       border-bottom: 1px solid #d4d9c8;
     }
     .report-content h2:first-child { margin-top: 0; }
+    .report-content strong { color: #2d4a28; font-weight: 600; }
+    .report-content ul, .report-content ol { margin: 4px 0 4px 18px; }
+    .report-content li { margin: 2px 0; }
+    .report-content table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 0.83rem; }
+    .report-content th { background: #eef1ea; padding: 7px 10px; text-align: left; color: #2d4a28; font-weight: 600; border-bottom: 2px solid #c4cdb8; }
+    .report-content td { padding: 6px 10px; border-top: 1px solid #e8ecdf; }
+    .report-content blockquote { border-left: 3px solid #4a6741; padding-left: 10px; color: #4a5a42; margin: 6px 0; font-style: italic; }
 
     .dl-btn {
       margin: 12px 20px;
@@ -318,7 +326,7 @@ Tell me about the contract — what it's for, how it's being procured, whether i
       <div class="report-content" id="report-content" style="display:none"></div>
     </div>
     <button class="dl-btn hidden" id="dl-btn" onclick="downloadReport()">
-      ⬇ Download Report (.txt)
+      ⬇ Download Report (.pdf)
     </button>
   </div>
 
@@ -374,9 +382,7 @@ Tell me about the contract — what it's for, how it's being procured, whether i
   }
 
   function renderReport(markdown) {
-    const html = escHtml(markdown)
-      .replace(/^## (.+)$/gm, '<h2>$1</h2>');
-    reportContent.innerHTML = html;
+    reportContent.innerHTML = marked.parse(markdown);
     reportPlaceholder.style.display = 'none';
     reportContent.style.display = 'block';
     dlBtn.classList.remove('hidden');
@@ -420,11 +426,22 @@ Tell me about the contract — what it's for, how it's being procured, whether i
   }
 
   function downloadReport() {
-    const blob = new Blob([currentReport], { type: 'text/plain' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'tender_prediction_report.txt';
-    a.click();
+    const element = document.createElement('div');
+    element.style.cssText = 'font-family: Georgia, serif; font-size: 12pt; line-height: 1.8; color: #1a2e17; padding: 20px;';
+    element.innerHTML = `
+      <div style="text-align:center; margin-bottom: 24px; border-bottom: 2px solid #4a6741; padding-bottom: 16px;">
+        <h1 style="font-size:16pt; color:#2d4a28; margin:0;">AusTender Price Prediction</h1>
+        <p style="color:#4a5a42; margin:4px 0 0; font-size:10pt;">Australian Government Procurement · Pre-award ML Model</p>
+      </div>
+      ${reportContent.innerHTML}
+    `;
+    html2pdf().set({
+      margin:     [15, 15],
+      filename:   'tender_prediction_report.pdf',
+      image:      { type: 'jpeg', quality: 0.98 },
+      html2canvas:{ scale: 2 },
+      jsPDF:      { unit: 'mm', format: 'a4', orientation: 'portrait' },
+    }).from(element).save();
   }
 </script>
 
