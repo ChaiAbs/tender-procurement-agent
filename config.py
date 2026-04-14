@@ -11,7 +11,7 @@ MODELS_DIR = os.path.join(BASE_DIR, "models")
 os.makedirs(MODELS_DIR, exist_ok=True)
 
 # ── Features ───────────────────────────────────────────────────────────────────
-# These are the 7 features available BEFORE a contract is awarded (no data leakage).
+# These are the 7 categorical features available BEFORE a contract is awarded.
 PRE_AWARD_FEATURES = [
     "procurement_method",
     "disposition",
@@ -21,6 +21,12 @@ PRE_AWARD_FEATURES = [
     "parent_category_code",
     "publisher_cofog_level",
 ]
+
+# Numeric pre-award features — passed through without one-hot encoding.
+NUMERIC_FEATURES = ["duration_days"]
+
+# Contract duration: cap at 10 years to filter data-entry errors in the export.
+DURATION_CAP_DAYS = 3650
 
 TARGET_COLUMN = "value"
 

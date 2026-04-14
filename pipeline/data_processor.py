@@ -22,7 +22,7 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 
 from .base   import PipelineStep
-from config  import PRE_AWARD_FEATURES, TARGET_COLUMN, MODELS_DIR
+from config  import PRE_AWARD_FEATURES, NUMERIC_FEATURES, DURATION_CAP_DAYS, TARGET_COLUMN, MODELS_DIR
 
 
 OHE_SCHEMA_PATH = os.path.join(MODELS_DIR, "ohe_schema.pkl")
@@ -34,6 +34,7 @@ class DataProcessor(PipelineStep):
     def __init__(self, verbose: bool = True):
         super().__init__(name="DataProcessor", verbose=verbose)
         self.feature_schema: list[str] | None = None   # one-hot column names
+        self._duration_median: float = 331.0            # fallback; overwritten on fit
 
     # ── Public interface ───────────────────────────────────────────────────────
 
@@ -48,6 +49,7 @@ class DataProcessor(PipelineStep):
             df = self._load(data_path)
             df = self._filter(df)
             df = self._clean_features(df)
+            df = self._compute_duration(df, fit=True)
             X, y = self._encode_features(df, fit=True)
 
             self.feature_schema = list(X.columns)
@@ -66,7 +68,7 @@ class DataProcessor(PipelineStep):
             })
             self.log(
                 f"Data ready — {len(df):,} rows | "
-                f"{X_tr.shape[1]} features | "
+                f"{X_tr.shape[1]} features (incl. duration_days) | "
                 f"train={len(X_tr):,} test={len(X_te):,}"
             )
             self._finish()
@@ -78,17 +80,58 @@ class DataProcessor(PipelineStep):
     def preprocess_single(self, contract: dict) -> pd.DataFrame:
         """
         Inference mode: convert a raw contract dict into a feature row.
-        One-hot encodes the single row then aligns columns to the training schema.
+        One-hot encodes categoricals then appends numeric features.
+        duration_days is imputed with the training median if not provided.
         """
         if self.feature_schema is None:
             self._load_ohe_schema()
 
+        contract = dict(contract)  # don't mutate caller's dict
+
+        # Compute or impute duration_days
+        if "duration_days" not in contract or contract["duration_days"] in (None, "", "unknown"):
+            if "contract_start" in contract and "contract_end" in contract:
+                try:
+                    start = pd.to_datetime(contract["contract_start"])
+                    end   = pd.to_datetime(contract["contract_end"])
+                    days  = (end - start).days
+                    contract["duration_days"] = float(min(max(days, 1), DURATION_CAP_DAYS))
+                except Exception:
+                    contract["duration_days"] = self._duration_median
+            else:
+                contract["duration_days"] = self._duration_median
+
         row = pd.DataFrame([contract])
         row = self._clean_features(row)
+        row = self._compute_duration(row, fit=False)
         X, _ = self._encode_features(row, fit=False)
         return X
 
     # ── Private helpers ────────────────────────────────────────────────────────
+
+    def _compute_duration(self, df: pd.DataFrame, fit: bool) -> pd.DataFrame:
+        """
+        Derive duration_days from contract_start / contract_end.
+        On fit=True: compute from date columns, save median for imputation.
+        On fit=False: use existing duration_days column (already set by preprocess_single).
+        """
+        if fit:
+            if "contract_start" in df.columns and "contract_end" in df.columns:
+                start = pd.to_datetime(df["contract_start"], errors="coerce")
+                end   = pd.to_datetime(df["contract_end"],   errors="coerce")
+                days  = (end - start).dt.days
+                days  = days.clip(lower=1, upper=DURATION_CAP_DAYS)
+                self._duration_median = float(days.median())
+                df["duration_days"] = days.fillna(self._duration_median)
+            else:
+                self._duration_median = 331.0
+                df["duration_days"] = self._duration_median
+            self.log(
+                f"duration_days: median={self._duration_median:.0f} days | "
+                f"missing filled with median"
+            )
+        # fit=False: duration_days already set in preprocess_single — nothing to do
+        return df
 
     # Minimum number of times a category value must appear to get its own column.
     # Values below this threshold are grouped into an '_other' bucket per feature.
@@ -129,11 +172,18 @@ class DataProcessor(PipelineStep):
             for c in X.columns
         ]
 
+        # Append numeric features (no encoding needed)
+        for col in NUMERIC_FEATURES:
+            if col in df.columns:
+                X[col] = df[col].values
+            else:
+                X[col] = 0.0
+
         if fit:
             self.feature_schema = list(X.columns)
             self._save_ohe_schema()
             self.log(f"One-hot encoding: {len(self.feature_schema)} features "
-                     f"(min_freq={self.MIN_CATEGORY_FREQ})")
+                     f"(incl. {len(NUMERIC_FEATURES)} numeric, min_freq={self.MIN_CATEGORY_FREQ})")
         else:
             X = X.reindex(columns=self.feature_schema, fill_value=0)
 
@@ -147,7 +197,11 @@ class DataProcessor(PipelineStep):
         os.makedirs(MODELS_DIR, exist_ok=True)
         with open(OHE_SCHEMA_PATH, "wb") as f:
             pickle.dump(
-                {"schema": self.feature_schema, "kept": self._kept_categories}, f
+                {
+                    "schema":          self.feature_schema,
+                    "kept":            self._kept_categories,
+                    "duration_median": self._duration_median,
+                }, f
             )
 
     def _load_ohe_schema(self) -> None:
@@ -159,6 +213,7 @@ class DataProcessor(PipelineStep):
             data = pickle.load(f)
         self.feature_schema     = data["schema"]
         self._kept_categories   = data["kept"]
+        self._duration_median   = data.get("duration_median", 331.0)
 
     def _load(self, path: str) -> pd.DataFrame:
         self.log(f"Loading data from {os.path.basename(path)} …")
