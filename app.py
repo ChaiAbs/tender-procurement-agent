@@ -227,6 +227,10 @@ def chat(req: ChatRequest):
                     "similar_contracts": similar,
                 })
             except Exception as exc:
+                import traceback
+                tb = traceback.format_exc()
+                print(f"[predict_contract error]\n{tb}", flush=True)
+                reply += f"\n\n**Debug error:**\n```\n{tb}\n```"
                 tool_output = json.dumps({"error": str(exc)})
 
             tool_results.append({
