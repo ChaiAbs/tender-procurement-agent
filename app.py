@@ -41,7 +41,7 @@ _client = anthropic.Anthropic()
 
 SYSTEM_PROMPT = """You are a tender price prediction assistant for Australian Government procurement.
 
-Your job is to collect the following 7 contract details from the user, then call
+Your job is to collect the following contract details from the user, then call
 the predict_contract tool to get an ML-based price estimate.
 
 Required fields:
@@ -53,9 +53,15 @@ Required fields:
   6. parent_category_code    — Parent UNSPSC code, e.g. "81000000"
   7. publisher_cofog_level   — COFOG level, e.g. "2"
 
+Optional but important:
+  8. duration_days           — expected contract duration in days. If the user
+     mentions years or months, convert (1 year = 365, 6 months = 183, etc.).
+     If unknown, omit it and the model will use a statistical default.
+
 Guidelines:
 - Be conversational and helpful. Extract details from what the user tells you.
 - Ask only for the fields you are missing — don't ask for everything at once.
+- Always ask for contract duration — it significantly improves prediction accuracy.
 - If a field cannot be determined, use "unknown".
 - Once you have at least procurement_method, disposition, is_consultancy_services,
   and publisher_gov_type, call predict_contract (use "unknown" for the rest).
@@ -97,6 +103,7 @@ TOOLS = [
                 "category_code":           {"type": "string", "description": "UNSPSC commodity code"},
                 "parent_category_code":    {"type": "string", "description": "Parent UNSPSC code"},
                 "publisher_cofog_level":   {"type": "string", "description": "COFOG classification level"},
+                "duration_days":           {"type": "number", "description": "Expected contract duration in days"},
             },
             "required": [
                 "procurement_method", "disposition",
@@ -122,22 +129,27 @@ def _run_ml_prediction(contract: dict) -> dict:
     return json.loads(result.stdout)
 
 
-def _run_langchain_report(contract: dict, ml_results: dict) -> str:
-    """Generate the full briefing report via the LangChain reporting node."""
-    from langchain_agents.nodes import reporting_node
+def _run_langchain_report(contract: dict, ml_results: dict) -> tuple[str, list[dict]]:
+    """
+    Generate the full briefing report via the three-node LangGraph pipeline.
+    Returns (report_text, similar_contracts).
+    """
+    from langchain_agents.graph import get_graph
 
-    state = {
+    initial = {
         "contract":               contract,
         "regression_prediction":  ml_results.get("regression", {}),
         "bucket_prediction":      ml_results.get("bucket", {}),
         "validation_result":      ml_results.get("validation", {}),
+        "ml_critique":            "",
         "similar_contracts":      [],
+        "analysis":               "",
         "report":                 "",
         "messages":               [],
         "errors":                 [],
     }
-    result = reporting_node(state)
-    return result.get("report", "Report generation failed.")
+    result = get_graph().invoke(initial)
+    return result.get("report", "Report generation failed."), result.get("similar_contracts", [])
 
 
 # ── API models ─────────────────────────────────────────────────────────────────
@@ -200,27 +212,18 @@ def chat(req: ChatRequest):
                 "category_code":           block.input.get("category_code",           "unknown"),
                 "parent_category_code":    block.input.get("parent_category_code",    "unknown"),
                 "publisher_cofog_level":   block.input.get("publisher_cofog_level",   "unknown"),
+                "duration_days":           block.input.get("duration_days"),
             }
 
             try:
                 ml_results = _run_ml_prediction(contract)
                 prediction = ml_results
 
-                # Fetch similar contracts for the chat summary table
-                try:
-                    from tools.rag_tools import search_similar_contracts
-                    similar_raw = search_similar_contracts.invoke({"contract_json": json.dumps(contract)})
-                    similar = json.loads(similar_raw)
-                    if isinstance(similar, dict) and "error" in similar:
-                        similar = []
-                except Exception:
-                    similar = []
-
-                report = _run_langchain_report(contract, ml_results)
+                report, similar = _run_langchain_report(contract, ml_results)
                 tool_output = json.dumps({
-                    "regression":       ml_results.get("regression", {}),
-                    "bucket":           ml_results.get("bucket", {}),
-                    "validation":       ml_results.get("validation", {}),
+                    "regression":        ml_results.get("regression", {}),
+                    "bucket":            ml_results.get("bucket", {}),
+                    "validation":        ml_results.get("validation", {}),
                     "similar_contracts": similar,
                 })
             except Exception as exc:
