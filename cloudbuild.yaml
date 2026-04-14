@@ -4,8 +4,7 @@ steps:
     args:
       - --destination=australia-southeast1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/tender-agent:$COMMIT_SHA
       - --destination=australia-southeast1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/tender-agent:latest
-      - --cache=true
-      - --cache-ttl=168h
+      - --cache=false
       - --cache-repo=australia-southeast1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/tender-agent/cache
 
   # Deploy to Cloud Run with GCS volume mount for RAG store
@@ -19,7 +18,7 @@ steps:
       - --region=australia-southeast1
       - --allow-unauthenticated
       - --memory=2Gi
-      - --timeout=120
+      - --timeout=300
       - --set-secrets=ANTHROPIC_API_KEY=anthropic-api-key:latest
       - --add-volume=name=rag-store,type=cloud-storage,bucket=tender-agent-assets,mount-options=only-dir=rag_store
       - --add-volume-mount=volume=rag-store,mount-path=/app/rag_store
