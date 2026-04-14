@@ -49,7 +49,7 @@ system: |
   - Keep each section to 2–3 sentences maximum
 
 # ── Human / user turn ─────────────────────────────────────────────────────────
-# Variables: {contract_json}, {regression_json}, {bucket_json}, {similar_contracts_json}
+# Variables: {contract_json}, {regression_json}, {bucket_json}, {validation_json}
 human: |
   Contract characteristics:
   {contract_json}
@@ -58,7 +58,7 @@ human: |
   Point estimate + confidence interval: {regression_json}
   Price range bucket: {bucket_json}
 
-  Similar historical contracts:
-  {similar_contracts_json}
+  Deterministic validation:
+  {validation_json}
 
   Assess the plausibility of this prediction using the four dimensions above.

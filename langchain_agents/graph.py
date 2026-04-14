@@ -3,21 +3,27 @@ langchain_agents/graph.py — LangGraph pipeline for tender price prediction.
 
 Graph topology:
 
-    START → reporting → END
+    START → ml_critique → analysis → reporting → END
 
-Single node: RAG search + final report synthesis.
+ml_critique : plausibility assessment of ML model outputs
+analysis    : RAG search + interpretation of similar historical contracts
+reporting   : final procurement briefing report synthesis
 """
 
 from langgraph.graph import END, START, StateGraph
 
-from .nodes import reporting_node
+from .nodes import analysis_node, ml_critique_node, reporting_node
 from .state import TenderState
 
 
 def build_graph():
     builder = StateGraph(TenderState)
+    builder.add_node("ml_critique", ml_critique_node)
+    builder.add_node("analysis", analysis_node)
     builder.add_node("reporting", reporting_node)
-    builder.add_edge(START, "reporting")
+    builder.add_edge(START, "ml_critique")
+    builder.add_edge("ml_critique", "analysis")
+    builder.add_edge("analysis", "reporting")
     builder.add_edge("reporting", END)
     return builder.compile()
 
@@ -34,7 +40,8 @@ def get_graph():
 def predict(contract: dict) -> dict:
     """
     Run the full pipeline for a single tender contract.
-    ML predictions and deterministic validation run in a subprocess first.
+    ML predictions and deterministic validation run in a subprocess first,
+    then the three-node LangGraph pipeline runs in sequence.
     """
     import json
     import os
@@ -64,7 +71,9 @@ def predict(contract: dict) -> dict:
         "regression_prediction":  regression_prediction,
         "bucket_prediction":      bucket_prediction,
         "validation_result":      validation_result,
+        "ml_critique":            "",
         "similar_contracts":      [],
+        "analysis":               "",
         "report":                 "",
         "messages":               [],
         "errors":                 [],

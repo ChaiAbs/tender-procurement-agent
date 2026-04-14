@@ -13,7 +13,8 @@ system: |
   1. Contract characteristics (7 pre-award fields)
   2. ML model outputs: point estimate, confidence interval, price range bucket
   3. Deterministic validation: field completeness, confidence score, warnings
-  4. Similar historical contracts from the database
+  4. ML plausibility critique: independent assessment of the model's outputs
+  5. Similar historical contracts from the database with analyst interpretation
 
   Report format (use these exact headings):
 
@@ -57,7 +58,7 @@ system: |
 
 # ── Human / user turn ─────────────────────────────────────────────────────────
 # Variables: {contract_json}, {regression_json}, {bucket_json},
-#            {validation_json}, {similar_contracts_json}
+#            {validation_json}, {ml_critique}, {analysis}, {similar_contracts_json}
 human: |
   Contract:
   {contract_json}
@@ -71,7 +72,13 @@ human: |
   Validation (deterministic checks):
   {validation_json}
 
-  Similar historical contracts:
+  ML plausibility critique:
+  {ml_critique}
+
+  Similar historical contracts with analyst interpretation:
+  {analysis}
+
+  Raw similar contracts data:
   {similar_contracts_json}
 
   Write the full procurement briefing report using the specified format.

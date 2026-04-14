@@ -21,8 +21,14 @@ class TenderState(TypedDict):
     bucket_prediction: dict          # Two-stage bucket + sub-range
     validation_result: dict          # Deterministic: field checks, confidence, consistency
 
-    # ── Populated by reporting_node ────────────────────────────────────────────
+    # ── Populated by ml_critique_node ─────────────────────────────────────────
+    ml_critique: str                 # Plausibility assessment of ML outputs
+
+    # ── Populated by analysis_node ─────────────────────────────────────────────
     similar_contracts: list[dict]    # RAG results
+    analysis: str                    # Interpretation of similar contracts
+
+    # ── Populated by reporting_node ────────────────────────────────────────────
     report: str                      # Final procurement briefing report
 
     # ── Accumulated across all nodes ───────────────────────────────────────────

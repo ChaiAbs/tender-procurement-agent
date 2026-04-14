@@ -30,11 +30,15 @@ system: |
   Be concise. Focus on what actually affects contract value, not general facts.
 
 # ── Human / user turn ─────────────────────────────────────────────────────────
-# Variables: {contract_json}, {similar_contracts_json}
+# Variables: {contract_json}, {similar_contracts_json}, {ml_critique}
 human: |
   Analyze this incoming tender contract:
 
   {contract_json}
+
+  ML model plausibility assessment (from prior analysis):
+
+  {ml_critique}
 
   Similar historical contracts retrieved from the database:
 
@@ -43,4 +47,5 @@ human: |
   Provide:
   1. A 2–3 sentence characterization of this contract type and its typical value drivers
   2. Key patterns from the similar historical contracts (value range, spread, outliers)
-  3. Any anomalies or risk factors (e.g. direct sourcing, missing category code, unusual gov type)
+  3. Whether the similar contracts support or contradict the ML model's plausibility assessment above
+  4. Any anomalies or risk factors (e.g. direct sourcing, missing category code, unusual gov type)
