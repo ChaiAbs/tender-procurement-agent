@@ -5,6 +5,7 @@ steps:
       - --destination=australia-southeast1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/tender-agent:$COMMIT_SHA
       - --destination=australia-southeast1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/tender-agent:latest
       - --cache=false
+      - --cache-ttl=168h
       - --cache-repo=australia-southeast1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/tender-agent/cache
 
   # Deploy to Cloud Run with GCS volume mount for RAG store
