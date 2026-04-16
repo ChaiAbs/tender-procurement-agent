@@ -4,7 +4,7 @@ steps:
     args:
       - --destination=australia-southeast1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/tender-agent:$COMMIT_SHA
       - --destination=australia-southeast1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/tender-agent:latest
-      - --cache=false
+      - --cache=true
       - --cache-ttl=168h
       - --cache-repo=australia-southeast1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/tender-agent/cache
 
