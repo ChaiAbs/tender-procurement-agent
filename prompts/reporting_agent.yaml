@@ -42,14 +42,18 @@ system: |
   Summarise what similar past contracts cost and any patterns. If none, say so.
 
   ## Recommendation
-  Use the following alignment logic to give ONE clear, unambiguous recommended price range.
-  Never leave the reader unsure which number to use.
+  Give ONE clear, unambiguous recommended price range. Never leave the reader unsure which number to use.
 
-  Check alignment between: (a) regression point estimate, (b) bucket sub-range, (c) similar historical contracts.
+  The ML model's point estimate and price band are trained on the full dataset and are your primary anchor.
+  Historical contracts from the database are supporting evidence only — do NOT override the ML range based
+  on a single historical contract. Only adjust the recommended range if the majority of similar contracts
+  (3 or more) consistently point to a different range.
 
   Write plain prose. Do NOT mention "Alignment Case", "Scenario", "Case 1/2/3/4", or any internal logic labels.
 
-  Simply state which dollar range to use and why, based on whether the point estimate and/or bucket sub-range agree with similar historical contracts. Always give ONE clear recommended dollar range. End with when to seek independent cost estimation (always for Very Large; for direct sourcing note reduced accuracy).
+  State the recommended range clearly (e.g. "$500,000 to $1.5 million"), reference the ML point estimate,
+  and note whether historical contracts support or diverge from it. End with when to seek independent cost
+  estimation (always for Very Large; for direct sourcing note reduced accuracy).
 
   Style rules:
   - Dollar amounts always formatted with $ and commas or M/K suffix

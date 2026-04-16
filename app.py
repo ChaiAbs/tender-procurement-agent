@@ -33,6 +33,21 @@ load_dotenv()
 app = FastAPI(title="Tender Price Prediction Agent")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
+
+@app.on_event("startup")
+def _preload_onnx():
+    """
+    Download and cache the ChromaDB ONNX embedding model at container startup.
+    Without this, the first request that hits the RAG triggers a 79MB download
+    mid-request, which causes Cloud Run timeouts.
+    """
+    try:
+        from chromadb.utils.embedding_functions import ONNXMiniLM_L6_V2
+        ONNXMiniLM_L6_V2()
+        print("[startup] ChromaDB ONNX model ready.", flush=True)
+    except Exception as exc:
+        print(f"[startup] Warning: could not pre-load ONNX model: {exc}", flush=True)
+
 # ── In-memory session store (swap for Redis in production) ─────────────────────
 _sessions: dict[str, list[dict]] = {}
 
@@ -52,16 +67,18 @@ Required fields:
   5. category_code           — UNSPSC commodity code, e.g. "81111500"
   6. parent_category_code    — Parent UNSPSC code, e.g. "81000000"
   7. publisher_cofog_level   — COFOG level, e.g. "2"
+  8. publisher_name          — the publishing agency name, e.g. "Department of Defence"
 
 Optional but important:
-  8. duration_days           — expected contract duration in days. If the user
-     mentions years or months, convert (1 year = 365, 6 months = 183, etc.).
-     If unknown, omit it and the model will use a statistical default.
+  9. duration_days           — intended contract duration from the procurement plan,
+     in days. If the user mentions years or months, convert (1 year = 365,
+     6 months = 183, etc.). If unknown, omit it and the model will use a
+     statistical default.
 
 Guidelines:
 - Be conversational and helpful. Extract details from what the user tells you.
 - Ask only for the fields you are missing — don't ask for everything at once.
-- Always ask for contract duration — it significantly improves prediction accuracy.
+- Always ask for the intended contract duration from the procurement plan — it significantly improves prediction accuracy.
 - If a field cannot be determined, use "unknown".
 - Once you have at least procurement_method, disposition, is_consultancy_services,
   and publisher_gov_type, call predict_contract (use "unknown" for the rest).
@@ -103,7 +120,8 @@ TOOLS = [
                 "category_code":           {"type": "string", "description": "UNSPSC commodity code"},
                 "parent_category_code":    {"type": "string", "description": "Parent UNSPSC code"},
                 "publisher_cofog_level":   {"type": "string", "description": "COFOG classification level"},
-                "duration_days":           {"type": "number", "description": "Expected contract duration in days"},
+                "publisher_name":          {"type": "string", "description": "Publishing agency name, e.g. Department of Defence"},
+                "duration_days":           {"type": "number", "description": "Intended contract duration from the procurement plan, in days"},
             },
             "required": [
                 "procurement_method", "disposition",
@@ -212,6 +230,7 @@ def chat(req: ChatRequest):
                 "category_code":           block.input.get("category_code",           "unknown"),
                 "parent_category_code":    block.input.get("parent_category_code",    "unknown"),
                 "publisher_cofog_level":   block.input.get("publisher_cofog_level",   "unknown"),
+                "publisher_name":          block.input.get("publisher_name",          "unknown"),
                 "duration_days":           block.input.get("duration_days"),
             }
 

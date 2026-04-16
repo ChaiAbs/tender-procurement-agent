@@ -11,7 +11,7 @@ MODELS_DIR = os.path.join(BASE_DIR, "models")
 os.makedirs(MODELS_DIR, exist_ok=True)
 
 # ── Features ───────────────────────────────────────────────────────────────────
-# These are the 7 categorical features available BEFORE a contract is awarded.
+# Original 7 pre-award categoricals — kept for validator/prompt compatibility.
 PRE_AWARD_FEATURES = [
     "procurement_method",
     "disposition",
@@ -22,8 +22,23 @@ PRE_AWARD_FEATURES = [
     "publisher_cofog_level",
 ]
 
-# Numeric pre-award features — passed through without one-hot encoding.
-NUMERIC_FEATURES = ["duration_days"]
+# All categorical features used in training (native XGBoost categorical encoding).
+# publisher_portfolio and publisher_cofog_level are auto-derived at inference
+# from a lookup table built during training — users only provide publisher_name.
+CATEGORICAL_FEATURES = [
+    "procurement_method",
+    "disposition",
+    "is_consultancy_services",
+    "publisher_gov_type",
+    "category_code",
+    "parent_category_code",
+    "publisher_cofog_level",
+    "publisher_name",
+    "publisher_portfolio",
+]
+
+# Numeric pre-award features — passed through without encoding.
+NUMERIC_FEATURES = ["duration_days", "contract_start_year", "contract_start_quarter"]
 
 # Contract duration: cap at 10 years to filter data-entry errors in the export.
 DURATION_CAP_DAYS = 3650
@@ -69,24 +84,28 @@ SUBRANGE_DEFINITIONS = {
 
 # ── Model hyperparameters ──────────────────────────────────────────────────────
 XGBOOST_REGRESSOR_PARAMS = {
-    "n_estimators":    200,
-    "max_depth":       6,
-    "learning_rate":   0.05,
-    "subsample":       0.8,
-    "colsample_bytree":0.8,
-    "random_state":    42,
-    "nthread":         1,
+    "n_estimators":       200,
+    "max_depth":          6,
+    "learning_rate":      0.05,
+    "subsample":          0.8,
+    "colsample_bytree":   0.8,
+    "random_state":       42,
+    "nthread":            -1,    # use all CPU cores
+    "tree_method":        "hist",        # required for native categorical support
+    "enable_categorical": True,
 }
 
 XGBOOST_CLASSIFIER_PARAMS = {
-    "n_estimators":    200,
-    "max_depth":       6,
-    "learning_rate":   0.05,
-    "subsample":       0.8,
-    "colsample_bytree":0.8,
-    "random_state":    42,
-    "eval_metric":     "mlogloss",
-    "nthread":         1,
+    "n_estimators":       200,
+    "max_depth":          6,
+    "learning_rate":      0.05,
+    "subsample":          0.8,
+    "colsample_bytree":   0.8,
+    "random_state":       42,
+    "eval_metric":        "mlogloss",
+    "nthread":            -1,
+    "tree_method":        "hist",
+    "enable_categorical": True,
 }
 
 # ── Pipeline thresholds ────────────────────────────────────────────────────────

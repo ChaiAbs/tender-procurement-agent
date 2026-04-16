@@ -43,6 +43,34 @@ def _assign_bucket(value: float) -> str:
     return "Very Large"
 
 
+def predict_from_regression(point_estimate_aud: float) -> dict:
+    """
+    Derive bucket and sub-range directly from the regression point estimate.
+    Replaces the classifier at inference time — eliminates model inconsistency
+    warnings and removes dependency on a poorly-performing classifier for
+    Large/Very Large contracts.
+    """
+    bucket = _assign_bucket(point_estimate_aud)
+
+    subrange_idx = len(SUBRANGE_DEFINITIONS[bucket]) - 1  # default to last
+    for idx, (_, lo, hi) in enumerate(SUBRANGE_DEFINITIONS[bucket]):
+        if lo <= point_estimate_aud < hi:
+            subrange_idx = idx
+            break
+
+    subrange_name, lo, hi = SUBRANGE_DEFINITIONS[bucket][subrange_idx]
+
+    return {
+        "predicted_bucket":     bucket,
+        "bucket_probability":   None,   # not applicable — bucket is derived, not predicted
+        "all_bucket_probs":     {},
+        "predicted_subrange":   subrange_name,
+        "subrange_probability": None,
+        "subrange_low_aud":     lo,
+        "subrange_high_aud":    hi if hi != float("inf") else None,
+    }
+
+
 def _assign_subrange_label(bucket: str, value: float) -> int:
     for idx, (_, lo, hi) in enumerate(SUBRANGE_DEFINITIONS[bucket]):
         if lo <= value < hi:

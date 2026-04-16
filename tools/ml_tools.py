@@ -14,15 +14,13 @@ import os
 import pandas as pd
 from langchain_core.tools import tool
 
-from pipeline.data_processor    import DataProcessor
-from pipeline.regressor         import Regressor
-from pipeline.bucket_classifier import BucketClassifier
+from pipeline.data_processor import DataProcessor
+from pipeline.regressor      import Regressor
 
 # ── Lazy-loaded singletons ─────────────────────────────────────────────────────
 
 _data_processor: DataProcessor | None = None
 _regressor: Regressor | None = None
-_bucket_classifier: BucketClassifier | None = None
 
 
 def _get_data_processor() -> DataProcessor:
@@ -39,13 +37,6 @@ def _get_regressor() -> Regressor:
     if _regressor is None:
         _regressor = Regressor(verbose=False)
     return _regressor
-
-
-def _get_bucket_classifier() -> BucketClassifier:
-    global _bucket_classifier
-    if _bucket_classifier is None:
-        _bucket_classifier = BucketClassifier(verbose=False)
-    return _bucket_classifier
 
 
 def _preprocess(contract: dict) -> pd.DataFrame:
@@ -82,31 +73,3 @@ def predict_regression(contract_json: str) -> str:
         return json.dumps({"error": str(exc)})
 
 
-@tool
-def predict_bucket(contract_json: str) -> str:
-    """
-    Run the two-stage bucket classifier to predict a price range.
-
-    Stage 1 classifies into Small/Medium/Large/Very Large.
-    Stage 2 classifies into one of four sub-ranges within that bucket.
-
-    Args:
-        contract_json: JSON string with the 7 pre-award contract fields.
-
-    Returns:
-        JSON string with keys:
-            predicted_bucket      — Small | Medium | Large | Very Large
-            bucket_probability    — Stage 1 confidence (0–1)
-            all_bucket_probs      — probabilities for all four buckets
-            predicted_subrange    — e.g. "$50K – $150K"
-            subrange_probability  — Stage 2 confidence (0–1)
-            subrange_low_aud      — lower bound in AUD
-            subrange_high_aud     — upper bound in AUD (null if >$150M)
-    """
-    try:
-        contract = json.loads(contract_json)
-        X = _preprocess(contract)
-        result = _get_bucket_classifier().predict(X)
-        return json.dumps(result)
-    except Exception as exc:
-        return json.dumps({"error": str(exc)})

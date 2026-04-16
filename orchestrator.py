@@ -6,11 +6,11 @@ The Orchestrator coordinates all pipeline steps:
   ┌─────────────────────────────────────────────────────────────────┐
   │                       ORCHESTRATOR                              │
   │                                                                 │
-  │  DataProcessor → Regressor → BucketClassifier   (training)     │
+  │  DataProcessor → Regressor                      (training)     │
   │                                                                 │
   │  DataProcessor.preprocess_single()                              │
   │    → Regressor.predict()                                        │
-  │    → BucketClassifier.predict()                                 │
+  │    → predict_from_regression()  (bucket derived deterministically)
   │    → Validator.run()                                            │
   │    → Presenter.run()                            (inference)     │
   └─────────────────────────────────────────────────────────────────┘
@@ -42,10 +42,10 @@ import sys
 from pipeline import (
     DataProcessor,
     Regressor,
-    BucketClassifier,
     Validator,
     Presenter,
 )
+from pipeline.bucket_classifier import predict_from_regression
 from config import MODELS_DIR, PRE_AWARD_FEATURES
 
 SCHEMA_PATH = os.path.join(MODELS_DIR, "feature_schema.pkl")
@@ -55,12 +55,11 @@ class Orchestrator:
     """Coordinates all pipeline steps for training and inference."""
 
     def __init__(self, verbose: bool = True):
-        self.verbose            = verbose
-        self.data_processor     = DataProcessor(verbose=verbose)
-        self.regressor          = Regressor(verbose=verbose)
-        self.bucket_classifier  = BucketClassifier(verbose=verbose)
-        self.validator          = Validator(verbose=verbose)
-        self.presenter          = Presenter(verbose=verbose)
+        self.verbose        = verbose
+        self.data_processor = DataProcessor(verbose=verbose)
+        self.regressor      = Regressor(verbose=verbose)
+        self.validator      = Validator(verbose=verbose)
+        self.presenter      = Presenter(verbose=verbose)
 
     # ── Training ───────────────────────────────────────────────────────────────
 
@@ -74,17 +73,13 @@ class Orchestrator:
         context = {"data_path": data_path}
 
         # 1. Data preparation
-        self._section("Step 1 / 3 — Data Processor")
+        self._section("Step 1 / 2 — Data Processor")
         context = self.data_processor.run(context)
         self._save_schema(context["feature_schema"])
 
         # 2. Regression model
-        self._section("Step 2 / 3 — Regressor")
+        self._section("Step 2 / 2 — Regressor")
         context = self.regressor.run(context)
-
-        # 3. Bucket classifier
-        self._section("Step 3 / 3 — Bucket Classifier")
-        context = self.bucket_classifier.run(context)
 
         self._banner("TRAINING COMPLETE")
         self._print_train_summary(context)
@@ -117,12 +112,11 @@ class Orchestrator:
             f"${reg_pred['ci_high_90_aud']:,.0f}"
         )
 
-        # 3. Bucket + sub-range classification
-        self._section("Step 3 / 4 — Bucket Classifier  (predict)")
-        bucket_pred = self.bucket_classifier.predict(X_infer)
-        self.bucket_classifier.log(
+        # 3. Bucket + sub-range (derived from regression point estimate)
+        self._section("Step 3 / 4 — Bucket  (derived from regression)")
+        bucket_pred = predict_from_regression(reg_pred["point_estimate_aud"])
+        self.regressor.log(
             f"Bucket: {bucket_pred['predicted_bucket']} "
-            f"({bucket_pred['bucket_probability']:.0%})  "
             f"| Sub-range: {bucket_pred['predicted_subrange']}"
         )
 
@@ -201,17 +195,13 @@ class Orchestrator:
 
 
     def _print_train_summary(self, context: dict) -> None:
-        reg = context.get("regression_metrics", {})
-        bkt = context.get("bucket_metrics",     {})
-        stats = context.get("stats",            {})
+        reg   = context.get("regression_metrics", {})
+        stats = context.get("stats",              {})
         print("\n\033[1mTraining Summary\033[0m")
         print(f"  Dataset          : {stats.get('n_contracts', '?'):,} contracts")
         print(f"  Regression R²    : {reg.get('r2', '?')}")
         print(f"  Regression RMSE  : {reg.get('rmse_log', '?')} (log space)")
-        print(f"  Stage 1 Accuracy : {bkt.get('stage1_accuracy', '?')}")
-        print(f"  Stage 1 Macro-F1 : {bkt.get('stage1_f1', '?')}")
-        if bkt.get('hit_rate'):
-            print(f"  E2E Hit Rate     : {bkt.get('hit_rate', 0):.1%}")
+        print(f"  Bucket/sub-range : derived from regression point estimate")
         print()
 
 

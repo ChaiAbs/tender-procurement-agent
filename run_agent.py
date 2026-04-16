@@ -17,7 +17,8 @@ Commands:
       --publisher-gov-type "FED" \\
       --category-code "81111500" \\
       --parent-category-code "81000000" \\
-      --publisher-cofog-level "2"
+      --publisher-cofog-level "2" \\
+      --publisher-name "Department of Defence"
 
 Environment variables (set in .env or shell):
   ANTHROPIC_API_KEY   — required for LLM calls
@@ -62,10 +63,14 @@ def cmd_predict(args):
         "category_code":           args.category_code,
         "parent_category_code":    args.parent_category_code,
         "publisher_cofog_level":   args.publisher_cofog_level,
+        "publisher_name":          args.publisher_name,
+        "duration_days":           args.duration_days,
     }
 
     print("\nRunning LangChain tender prediction pipeline...")
-    print("  Step 1/1 — Reporting agent (RAG search + procurement briefing)\n")
+    print("  Step 1/3 — ML critique")
+    print("  Step 2/3 — RAG search + analysis")
+    print("  Step 3/3 — Procurement briefing report\n")
 
     result = predict(contract)
 
@@ -168,6 +173,8 @@ def main():
     pred.add_argument("--category-code",           default="unknown")
     pred.add_argument("--parent-category-code",    default="unknown")
     pred.add_argument("--publisher-cofog-level",   default="unknown")
+    pred.add_argument("--publisher-name",          default="unknown")
+    pred.add_argument("--duration-days",           type=float, default=None)
     pred.add_argument(
         "--report-only", action="store_true",
         help="Print only the final report (skip intermediate agent outputs)",

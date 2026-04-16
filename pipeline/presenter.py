@@ -123,11 +123,9 @@ class Presenter(PipelineStep):
             f"  Predicted value   : {_BOLD}{self._fmt(reg['value_aud'])}{_RESET}",
             f"  90% CI            : {self._fmt(reg['ci_low_aud'])}  –  {self._fmt(reg['ci_high_aud'])}",
             "",
-            f"{_BOLD}── Range Prediction (Two-Stage Bucket Pipeline) ────────{_RESET}",
-            f"  Bucket            : {_BOLD}{bkt['bucket']}{_RESET}  "
-            f"(confidence {bkt['probability']:.0%})",
-            f"  Sub-range         : {_BOLD}{_GREEN}{sr['label']}{_RESET}  "
-            f"(confidence {sr['probability']:.0%})",
+            f"{_BOLD}── Range Prediction ────────────────────────────────────{_RESET}",
+            f"  Bucket            : {_BOLD}{bkt['bucket']}{_RESET}",
+            f"  Sub-range         : {_BOLD}{_GREEN}{sr['label']}{_RESET}",
             f"  Range in AUD      : {self._fmt(sr['low_aud'])}  –  "
             f"{self._fmt(sr['high_aud']) if sr['high_aud'] else '>$150M'}",
             "",
@@ -155,9 +153,8 @@ class Presenter(PipelineStep):
 
         lines += [
             "",
-            f"{_DIM}Model: XGBoost (pre-award features only) | "
-            f"Realistic ceiling R²=0.39 | "
-            f"Pipeline hit rate ~31.8% vs 6.25% random{_RESET}",
+            f"{_DIM}Model: XGBoost native categoricals (pre-award features only) | "
+            f"R²=0.59 | Bucket derived from regression point estimate{_RESET}",
             "",
         ]
 

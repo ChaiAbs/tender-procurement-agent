@@ -9,7 +9,6 @@ Responsibilities:
      plus a confidence interval derived from training RMSE.
 
 Context keys consumed:  X_train, X_test, y_train, y_test  (training mode)
-                        X_infer                            (inference mode)
 Context keys produced:  regression_model, regression_metrics,
                         regression_prediction  (dict with point estimate + CI)
 """
@@ -34,7 +33,7 @@ class Regressor(PipelineStep):
 
     def __init__(self, verbose: bool = True):
         super().__init__(name="Regressor", verbose=verbose)
-        self.model     = None
+        self.model      = None
         self.train_rmse: float | None = None
 
     # ── Public interface ───────────────────────────────────────────────────────
@@ -54,9 +53,8 @@ class Regressor(PipelineStep):
             self.model = XGBRegressor(**XGBOOST_REGRESSOR_PARAMS)
             self.model.fit(X_train, y_train)
 
-            # Evaluate
-            y_pred      = self.model.predict(X_test)
-            metrics     = self._evaluate(y_test.values, y_pred)
+            y_pred          = self.model.predict(X_test)
+            metrics         = self._evaluate(y_test.values, y_pred)
             self.train_rmse = metrics["rmse_log"]
 
             self.log(
@@ -65,7 +63,6 @@ class Regressor(PipelineStep):
                 f"MAE(log)={metrics['mae_log']:.4f}"
             )
 
-            # Save
             self._save()
             context["regression_model"]   = self.model
             context["regression_metrics"] = metrics
@@ -83,13 +80,13 @@ class Regressor(PipelineStep):
         if self.model is None:
             self._load()
 
-        log_pred   = float(self.model.predict(X_infer)[0])
-        point_est  = float(np.expm1(log_pred))
+        log_pred  = float(self.model.predict(X_infer)[0])
+        point_est = float(np.expm1(log_pred))
 
         # 90% CI: ±1.645 * RMSE in log space, back-transformed
-        rmse       = self.train_rmse or 1.6
-        ci_low     = float(np.expm1(log_pred - 1.645 * rmse))
-        ci_high    = float(np.expm1(log_pred + 1.645 * rmse))
+        rmse    = self.train_rmse or 1.3
+        ci_low  = float(np.expm1(log_pred - 1.645 * rmse))
+        ci_high = float(np.expm1(log_pred + 1.645 * rmse))
 
         return {
             "point_estimate_aud": round(point_est, 2),

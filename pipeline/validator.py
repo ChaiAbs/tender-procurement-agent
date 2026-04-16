@@ -145,12 +145,13 @@ class Validator(PipelineStep):
           - Which bucket (bonus/penalty)
           - Stage 1 class probability
         """
-        bucket     = bucket_pred.get("predicted_bucket", "Medium")
-        s1_prob    = bucket_pred.get("bucket_probability", 0.5)
+        bucket  = bucket_pred.get("predicted_bucket", "Medium")
+        s1_prob = bucket_pred.get("bucket_probability")  # None when derived from regression
 
         score = 0.50
         score += _BUCKET_CONFIDENCE_BONUS.get(bucket, 0.0)
-        score += (s1_prob - 0.5) * 0.4   # scale probability deviation
+        if s1_prob is not None:
+            score += (s1_prob - 0.5) * 0.4   # scale probability deviation
 
         score = max(0.0, min(1.0, score))
 
