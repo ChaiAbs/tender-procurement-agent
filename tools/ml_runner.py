@@ -18,14 +18,15 @@ os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from tools.ml_tools import predict_regression, predict_bucket
+from tools.ml_tools import predict_regression
+from pipeline.bucket_classifier import predict_from_regression
 from pipeline.validator import Validator
 
 contract_json = sys.argv[1]
 contract      = json.loads(contract_json)
 
 regression = json.loads(predict_regression.invoke({"contract_json": contract_json}))
-bucket     = json.loads(predict_bucket.invoke({"contract_json": contract_json}))
+bucket     = predict_from_regression(regression.get("point_estimate_aud", 0))
 
 # Run deterministic validation — no LLM needed
 validator_context = {
