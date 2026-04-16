@@ -4,15 +4,64 @@ A multi-agent ML pipeline that predicts Australian Government contract prices fr
 
 ---
 
+## Demo
+
+### Conversational Interface
+The agent collects contract details through natural language dialogue — no forms to fill in. It asks for missing fields one at a time and confirms what it has before running the prediction.
+
+![Conversational Interface](docs/demo/chat_conversation.png)
+
+*The assistant extracts contract fields from free-text input and asks only for what it's missing. Once enough information is collected it automatically triggers the ML pipeline.*
+
+---
+
+### Price Prediction Report
+After collecting the contract details, the agent runs the ML pipeline and generates a full procurement briefing report in the right panel.
+
+![Prediction Report](docs/demo/prediction_report.png)
+
+*The report includes a point estimate, 90% confidence interval, price band (Small/Medium/Large/Very Large), sub-range, and a confidence assessment. All dollar amounts are derived from the XGBoost regression model trained on 1M+ historical AusTender contracts.*
+
+---
+
+### Similar Historical Contracts
+The report surfaces the most similar historical contracts from the RAG index to give procurement officers real-world anchors.
+
+![Similar Contracts](docs/demo/similar_contracts.png)
+
+*ChromaDB vector search retrieves the 5 most similar past contracts by procurement characteristics. These are used as supporting evidence — the ML point estimate remains the primary recommendation anchor.*
+
+---
+
+### Recommendation
+The report closes with a plain-language recommended dollar range for budget planning and market engagement.
+
+![Recommendation](docs/demo/recommendation.png)
+
+*The recommendation anchors to the ML point estimate by default. It only adjusts if the majority of similar historical contracts consistently suggest a different range.*
+
+---
+
 ## Architecture
 
 ```
-Orchestrator
-├── DataAgent          — loads, cleans, one-hot-encodes tender data
-├── RegressionAgent    — XGBoost regressor → point estimate + 90% CI
-├── BucketAgent        — Stage 1 (bucket) + Stage 2 (sub-range) classifier
-├── ValidatorAgent     — confidence scoring + input/prediction warnings
-└── PresenterAgent     — formatted terminal report
+User (chat)
+    │
+    ▼
+FastAPI + Anthropic Claude (conversational field collection)
+    │
+    ▼
+ML Runner (subprocess)
+    ├── DataProcessor     — cleans & encodes contract features
+    ├── XGBoost Regressor — point estimate + 90% CI
+    ├── predict_from_regression() — deterministic bucket/sub-range
+    └── Validator         — confidence scoring + warnings
+    │
+    ▼
+LangGraph Pipeline
+    ├── ml_critique node  — plausibility assessment of ML outputs
+    ├── analysis node     — RAG search + similar contract interpretation
+    └── reporting node    — full procurement briefing report synthesis
 ```
 
 ---
@@ -29,55 +78,68 @@ pip install -r requirements.txt
 python orchestrator.py --mode train --data tenders_export.xlsx
 ```
 
-### 3. Predict a new contract
+### 3. Index tenders into RAG
 ```bash
-python orchestrator.py --mode predict \
-  --procurement_method "open tender" \
-  --disposition "contract notice" \
-  --is_consultancy_services "no" \
-  --publisher_gov_type "FED" \
-  --category_code "81111500" \
-  --parent_category_code "81000000" \
-  --publisher_cofog_level "2"
+python run_agent.py index --data tenders_export.xlsx
 ```
 
-### 4. Evaluate on the dataset
+### 4. Run the web app
+```bash
+python app.py
+```
+
+### 5. Predict via CLI
+```bash
+python run_agent.py predict \
+  --procurement-method "open tender" \
+  --disposition "contract notice" \
+  --is-consultancy-services "no" \
+  --publisher-gov-type "FED" \
+  --category-code "81111500" \
+  --parent-category-code "81000000" \
+  --publisher-cofog-level "2" \
+  --publisher-name "Department of Defence" \
+  --duration-days 365
+```
+
+### 6. Evaluate on the dataset
 ```bash
 python orchestrator.py --mode evaluate --data tenders_export.xlsx
 ```
 
 ---
 
-## What each agent does
+## Pre-award features used
 
-| Agent | Responsibility |
-|-------|---------------|
-| **DataAgent** | Loads Excel/CSV, filters invalid rows, cleans 7 pre-award features, one-hot encodes, log-transforms target |
-| **RegressionAgent** | Trains XGBoost regressor, saves model, returns point estimate + 90% confidence interval at inference |
-| **BucketAgent** | Stage 1: classifies into Small/Medium/Large/Very Large. Stage 2: predicts sub-range within bucket. Implements the paper's two-stage pipeline |
-| **ValidatorAgent** | Checks for missing fields, suspicious values, assesses prediction confidence, checks consistency between regression and bucket outputs |
-| **PresenterAgent** | Formats everything into a colour-coded terminal report |
-| **Orchestrator** | Coordinates all agents, manages training vs. inference modes, saves/loads feature schema |
-
----
-
-## Pre-award features used (no data leakage)
-
-- `procurement_method` — open tender, limited tender, direct sourcing, etc.
-- `disposition` — contract notice, amendment, standing offer
-- `is_consultancy_services` — Yes / No
-- `publisher_gov_type` — FED / WA / NSW / etc.
-- `category_code` — 8-digit UNSPSC commodity code
-- `parent_category_code` — top-level UNSPSC category
-- `publisher_cofog_level` — government functional classification level
+| Feature | Description |
+|---|---|
+| `procurement_method` | Open tender, direct sourcing, select tender, etc. |
+| `disposition` | Contract notice, standing offer notice, amendment |
+| `is_consultancy_services` | Yes / No |
+| `publisher_gov_type` | FED / STATE / LOCAL |
+| `category_code` | 8-digit UNSPSC commodity code |
+| `parent_category_code` | Top-level UNSPSC category |
+| `publisher_cofog_level` | Government functional classification level |
+| `publisher_name` | Publishing agency name (auto-derives portfolio and COFOG) |
+| `publisher_portfolio` | Agency portfolio (auto-derived from publisher_name lookup) |
+| `duration_days` | Intended contract duration from procurement plan |
+| `contract_start_year` | Year of contract start (captures inflation trends) |
+| `contract_start_quarter` | Quarter of contract start (captures budget cycle patterns) |
 
 ---
 
-## Expected performance (from paper)
+## Model Performance
 
-| Metric | Value |
-|--------|-------|
-| Regression R² (pre-award) | ~0.39 |
-| Pipeline hit rate | ~31.8% (vs 6.25% random) |
-| Small contract hit rate | ~47% (vs 25% random) |
-| Large / Very Large | Unreliable — treat as directional only |
+| Change | R² |
+|---|---|
+| Baseline (7 features, OHE) | 0.38 |
+| + duration_days | 0.52 |
+| + publisher_name, native categoricals | 0.59 |
+| + contract_start_year / quarter | 0.607 |
+
+- **Training rows:** ~1M AusTender contracts
+- **Encoding:** XGBoost native categoricals (no one-hot encoding)
+- **Sub-range hit rate:** 16% vs 6.25% random baseline
+- **Bucket assignment:** Deterministic from regression point estimate
+
+See [MODEL_CHANGES.md](MODEL_CHANGES.md) for a full history of architectural decisions.
