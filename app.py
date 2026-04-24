@@ -83,7 +83,10 @@ Guidelines:
 - Once you have at least procurement_method, disposition, is_consultancy_services,
   and publisher_gov_type, call predict_contract (use "unknown" for the rest).
 
-After getting the prediction, reply with exactly these three sections:
+After getting the prediction, reply with exactly these three sections.
+In the Price Prediction section, include the model used as a bullet point: "**ML model:** XGBoost" — use the display name matching the model_key (xgboost→XGBoost, lightgbm→LightGBM, catboost→CatBoost, random_forest→Random Forest, extra_trees→Extra Trees, hist_gb→Hist Gradient Boosting, gradient_boost→Gradient Boosting, ridge→Ridge Regression).
+
+
 
 ## Price Prediction
 - **Predicted range:** the sub-range (e.g. $50K – $150K)
