@@ -18,7 +18,7 @@ import os
 import subprocess
 import sys
 import uuid
-from typing import Optional
+from typing import Any, Optional
 
 import anthropic
 from dotenv import load_dotenv
@@ -134,11 +134,13 @@ TOOLS = [
 
 # ── ML prediction (reuses ml_runner subprocess) ───────────────────────────────
 
-def _run_ml_prediction(contract: dict) -> dict:
-    """Call the ML pipeline in a subprocess (same path as run_agent.py)."""
+def _run_ml_prediction(contract: dict, model_key: str | None = None) -> dict:
+    """Call the ML pipeline in a subprocess (isolates XGBoost/OpenMP from async)."""
+    from ml_evaluation.evaluator import get_active_model
+    key    = model_key or get_active_model()
     runner = os.path.join(os.path.dirname(__file__), "tools", "ml_runner.py")
     result = subprocess.run(
-        [sys.executable, runner, json.dumps(contract)],
+        [sys.executable, runner, json.dumps(contract), key],
         capture_output=True, text=True, timeout=60,
         env={**os.environ, "KMP_DUPLICATE_LIB_OK": "TRUE"},
     )
@@ -175,6 +177,7 @@ def _run_langchain_report(contract: dict, ml_results: dict) -> tuple[str, list[d
 class ChatRequest(BaseModel):
     message: str
     session_id: Optional[str] = None
+    model_key: Optional[str] = None   # override active model for this request
 
 
 class ChatResponse(BaseModel):
@@ -235,7 +238,7 @@ def chat(req: ChatRequest):
             }
 
             try:
-                ml_results = _run_ml_prediction(contract)
+                ml_results = _run_ml_prediction(contract, model_key=req.model_key)
                 prediction = ml_results
 
                 report, similar = _run_langchain_report(contract, ml_results)
@@ -270,6 +273,56 @@ def chat(req: ChatRequest):
         report=report,
         prediction=prediction,
     )
+
+
+@app.get("/api/models")
+def list_models():
+    """Return all registered models, their metrics (if trained), and the active key."""
+    from ml_evaluation.model_registry import MODEL_REGISTRY
+    from ml_evaluation.evaluator      import MultiModelEvaluator, get_active_model
+
+    active     = get_active_model()
+    comparison = MultiModelEvaluator.load_comparison()
+    metrics_by_key = {
+        r["model_key"]: r for r in comparison if r.get("status") == "ok"
+    }
+
+    models: list[dict[str, Any]] = []
+    for key, spec in MODEL_REGISTRY.items():
+        entry: dict[str, Any] = {
+            "key":          key,
+            "display_name": spec["display_name"],
+            "is_active":    key == active,
+        }
+        if key in metrics_by_key:
+            m = metrics_by_key[key]
+            entry.update({
+                "r2":           m["r2"],
+                "rmse_log":     m["rmse_log"],
+                "mae_log":      m["mae_log"],
+                "mae_dollar":   m.get("mae_dollar"),
+                "within_50pct": m.get("within_50pct"),
+                "train_time_s": m.get("train_time_s"),
+            })
+        models.append(entry)
+
+    return {"models": models, "active": active}
+
+
+class SetModelRequest(BaseModel):
+    model_key: str
+
+
+@app.post("/api/models/active")
+def set_active_model(body: SetModelRequest):
+    """Set the active prediction model."""
+    from ml_evaluation.evaluator import set_active_model as _set
+    from fastapi import HTTPException
+    try:
+        _set(body.model_key)
+        return {"active": body.model_key}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @app.delete("/api/session/{session_id}")

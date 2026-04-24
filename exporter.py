@@ -383,7 +383,88 @@ def export_to_word(result: dict, output_path: str) -> str:
             rows = [(k, str(v)) for k, v in c.items()]
             _add_kv_table(doc, rows)
 
+    # ── Model performance comparison (if training has been run) ───────────────
+    _add_model_comparison_appendix(doc, reg.get("model_key", "xgboost"))
+
     # ── Save ──────────────────────────────────────────────────────────────────
     out = Path(output_path).resolve()
     doc.save(str(out))
     return str(out)
+
+
+def _add_model_comparison_appendix(doc: Document, active_model_key: str) -> None:
+    """Add a Model Performance Comparison appendix if comparison data exists."""
+    try:
+        from ml_evaluation.evaluator import MultiModelEvaluator
+        comparison = MultiModelEvaluator.load_comparison()
+    except Exception:
+        return
+
+    rows_ok = [r for r in comparison if r.get("status") == "ok"]
+    if not rows_ok:
+        return
+
+    rows_ok.sort(key=lambda r: r.get("r2", 0), reverse=True)
+
+    _add_horizontal_rule(doc)
+    doc.add_paragraph()
+    h = doc.add_heading("Appendix — ML Model Performance Comparison", level=1)
+    _set_heading_color(h, APPENDIX_COLOR)
+
+    note = doc.add_paragraph(
+        f"Prediction generated using: {rows_ok[0]['display_name'] if not any(r['model_key'] == active_model_key for r in rows_ok) else next(r['display_name'] for r in rows_ok if r['model_key'] == active_model_key)}.  "
+        "All models trained on the same 80/20 train/test split.  "
+        "Metrics are in log₁p space unless noted."
+    )
+    note.runs[0].font.size = Pt(9)
+    note.runs[0].font.color.rgb = RGBColor(89, 89, 89)
+    doc.add_paragraph()
+
+    # Build table: header + one row per model
+    headers = ["Model", "R²", "RMSE (log)", "MAE (log)", "MAE ($)", "≤50% acc.", "Time (s)"]
+    table = doc.add_table(rows=1 + len(rows_ok), cols=len(headers))
+    table.style = TABLE_STYLE
+
+    # Header row
+    hdr_row = table.rows[0]
+    for j, hdr in enumerate(headers):
+        cell = hdr_row.cells[j]
+        _set_cell_padding(cell)
+        _set_cell_bg(cell, HEADER_BG_HEX)
+        p = cell.paragraphs[0]
+        p.clear()
+        run = p.add_run(hdr)
+        run.bold = True
+        run.font.size  = Pt(9)
+        run.font.color.rgb = RGBColor(255, 255, 255)
+
+    # Data rows
+    for i, row in enumerate(rows_ok):
+        is_active = row["model_key"] == active_model_key
+        tr = table.rows[i + 1]
+        if i % 2 == 0:
+            bg = ALT_ROW_BG_HEX
+        else:
+            bg = "FFFFFF"
+
+        values = [
+            row["display_name"] + (" ★" if is_active else ""),
+            f"{row['r2']:.4f}",
+            f"{row['rmse_log']:.4f}",
+            f"{row['mae_log']:.4f}",
+            f"${row.get('mae_dollar', 0):>12,.0f}" if row.get("mae_dollar") else "—",
+            f"{row.get('within_50pct', 0):.1f}%",
+            f"{row.get('train_time_s', 0):.1f}s",
+        ]
+        for j, val in enumerate(values):
+            cell = tr.cells[j]
+            _set_cell_padding(cell)
+            _set_cell_bg(cell, bg)
+            p = cell.paragraphs[0]
+            p.clear()
+            run = p.add_run(val)
+            run.font.size = Pt(9)
+            if is_active:
+                run.bold = True
+
+    doc.add_paragraph()

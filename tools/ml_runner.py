@@ -1,11 +1,12 @@
 """
-tools/ml_runner.py — Subprocess entry point for ML predictions + validation.
+tools/ml_runner.py — Subprocess entry point for ML predictions.
 
-Run by graph.predict() in a subprocess to isolate XGBoost/OpenMP from
-LangChain's async context, which causes a segfault on macOS ARM otherwise.
+Isolates XGBoost/OpenMP from LangChain's async context (macOS ARM segfault).
 
-Usage (internal):
+Usage:
     python tools/ml_runner.py '<contract_json>'
+    python tools/ml_runner.py '<contract_json>' xgboost
+    python tools/ml_runner.py '<contract_json>' lightgbm
 
 Prints a single JSON line with regression, bucket, and validation results.
 """
@@ -18,21 +19,32 @@ os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from tools.ml_tools import predict_regression
+from ml_evaluation.evaluator    import get_active_model
+from pipeline.data_processor    import DataProcessor
+from pipeline.regressor         import Regressor
 from pipeline.bucket_classifier import predict_from_regression
-from pipeline.validator import Validator
+from pipeline.validator         import Validator
 
 contract_json = sys.argv[1]
 contract      = json.loads(contract_json)
 
-regression = json.loads(predict_regression.invoke({"contract_json": contract_json}))
-bucket     = predict_from_regression(regression.get("point_estimate_aud", 0))
+# Resolve model key: explicit CLI arg → active model file → default
+model_key = sys.argv[2] if len(sys.argv) > 2 else get_active_model()
 
-# Run deterministic validation — no LLM needed
+# Run regression prediction directly (avoid the LangChain tool layer in subprocess)
+dp = DataProcessor(verbose=False)
+dp._load_ohe_schema()
+X_infer = dp.preprocess_single(contract)
+
+regressor = Regressor(model_key=model_key, verbose=False)
+regression = regressor.predict(X_infer)
+
+bucket = predict_from_regression(regression.get("point_estimate_aud", 0))
+
 validator_context = {
-    "contract":               contract,
-    "regression_prediction":  regression,
-    "bucket_prediction":      bucket,
+    "contract":              contract,
+    "regression_prediction": regression,
+    "bucket_prediction":     bucket,
 }
 Validator(verbose=False).run(validator_context)
 validation = validator_context.get("validation", {})

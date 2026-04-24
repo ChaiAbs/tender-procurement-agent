@@ -23,3 +23,12 @@ rag_store/
 
 # Reports
 report.docx
+
+MODEL_CHANGES.md
+INTERVIEW_PREP.md
+
+# ML model artifacts (stored in GCS — see cloudbuild.yaml)
+models/
+
+# CatBoost training logs
+catboost_info/

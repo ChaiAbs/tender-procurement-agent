@@ -284,6 +284,39 @@
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: #c4cdb8; border-radius: 3px; }
+
+    /* ── Model selector ──────────────────────────────────────────────────────── */
+    .model-selector {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .model-selector label {
+      font-size: 0.72rem;
+      color: #b8ccb0;
+      white-space: nowrap;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .model-selector select {
+      background: #3d5c35;
+      color: #e8f0e2;
+      border: 1px solid #4a6741;
+      border-radius: 6px;
+      padding: 5px 10px;
+      font-size: 0.78rem;
+      cursor: pointer;
+      outline: none;
+    }
+    .model-selector select:hover { background: #4a6741; }
+    .model-badge {
+      font-size: 0.68rem;
+      color: #8ab87e;
+      white-space: nowrap;
+    }
+
   </style>
 </head>
 <body>
@@ -294,7 +327,11 @@
     <h1>AusTender Price Prediction</h1>
     <p>Australian Government Procurement · Pre-award ML model</p>
   </div>
-  <span class="badge">XGBoost · 27.3% hit rate · 4.4× baseline</span>
+  <div class="model-selector">
+    <label for="model-select">Model</label>
+    <select id="model-select" onchange="setActiveModel(this.value)"></select>
+    <span class="model-badge" id="model-badge"></span>
+  </div>
 </header>
 
 <div class="layout">
@@ -350,8 +387,53 @@ Tell me about the contract — what it's for, how it's being procured, whether i
 I'll ask for anything missing.`;
   document.getElementById('intro-bubble').innerHTML = marked.parse(introText);
 
-  let sessionId = null;
-  let currentReport = '';
+  let sessionId      = null;
+  let currentReport  = '';
+  let activeModelKey = 'xgboost';
+  let _modelList     = [];
+
+  // ── Load model list on startup ─────────────────────────────────────────────
+  async function loadModels() {
+    try {
+      const res  = await fetch('/api/models');
+      const data = await res.json();
+      const sel  = document.getElementById('model-select');
+
+      sel.innerHTML = '';
+      data.models.forEach(m => {
+        const opt   = document.createElement('option');
+        opt.value   = m.key;
+        opt.text    = m.display_name;
+        if (m.is_active) opt.selected = true;
+        sel.appendChild(opt);
+      });
+
+      _modelList     = data.models;
+      activeModelKey = data.active;
+      _updateModelBadge(data.models.find(m => m.key === data.active));
+    } catch (_) {
+      // API not ready yet — default option stays
+    }
+  }
+
+  function _updateModelBadge(model) {
+    const badge = document.getElementById('model-badge');
+    if (!model) { badge.textContent = ''; return; }
+    if (model.r2 !== undefined) {
+      badge.textContent = `R²=${model.r2.toFixed(3)}`;
+    } else {
+      badge.textContent = 'not yet trained';
+    }
+  }
+
+
+  function setActiveModel(key) {
+    activeModelKey = key;
+    const model = _modelList.find(m => m.key === key);
+    _updateModelBadge(model);
+  }
+
+  loadModels();
 
   const messagesEl        = document.getElementById('messages');
   const inputEl           = document.getElementById('input');
@@ -424,7 +506,7 @@ I'll ask for anything missing.`;
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, session_id: sessionId }),
+        body: JSON.stringify({ message: text, session_id: sessionId, model_key: activeModelKey }),
       });
       const data = await res.json();
       sessionId = data.session_id;
