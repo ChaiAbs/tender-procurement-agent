@@ -62,8 +62,8 @@ the predict_contract tool to get an ML-based price estimate.
 Required fields:
   1. procurement_method      — e.g. "Open tender", "Direct sourcing", "Select tender"
   2. disposition             — e.g. "Contract Notice", "Standing Offer Notice"
-  3. is_consultancy_services — "Yes" or "No"
-  4. publisher_gov_type      — "FED" (Federal), "STATE", or "LOCAL"
+  3. is_consultancy_services — always "no" (constant in training data, set automatically)
+  4. publisher_gov_type      — "fed" (Federal), or state: "qld", "nsw", "vic", "wa", "act", "sa", "tas", "nt"
   5. category_code           — UNSPSC commodity code, e.g. "81111500"
   6. parent_category_code    — Parent UNSPSC code, e.g. "81000000"
   7. publisher_cofog_level   — COFOG level, e.g. "2"
@@ -80,8 +80,20 @@ Guidelines:
 - Ask only for the fields you are missing — don't ask for everything at once.
 - Always ask for the intended contract duration from the procurement plan — it significantly improves prediction accuracy.
 - If a field cannot be determined, use "unknown".
-- Once you have at least procurement_method, disposition, is_consultancy_services,
-  and publisher_gov_type, call predict_contract (use "unknown" for the rest).
+- Once you have at least procurement_method, disposition, and publisher_gov_type,
+  call predict_contract (use "unknown" for the rest).
+
+Field extraction rules:
+- For category_code and parent_category_code: ALWAYS call lookup_procurement_codes with
+  field="category_code" and a description of what is being purchased before setting these.
+  Never guess a UNSPSC code from memory.
+- For publisher_cofog_level: call lookup_procurement_codes with field="cofog" and a
+  description of the agency's government function. Only two values exist: "1.0" or "2.0".
+- For procurement_method: use exact lowercase strings from the training data. Common values:
+  "open tender", "limited tender", "direct sourcing", "select tender", "demand driven".
+  Call lookup_procurement_codes with field="procurement_method" if unsure.
+- For publisher_gov_type: "fed" for federal agencies, or state code: "qld", "nsw", "vic",
+  "wa", "act", "sa", "tas", "nt".
 
 After getting the prediction, reply with exactly these three sections.
 In the Price Prediction section, include the model used as a bullet point: "**ML model:** XGBoost" — use the display name matching the model_key (xgboost→XGBoost, lightgbm→LightGBM, catboost→CatBoost, random_forest→Random Forest, extra_trees→Extra Trees, hist_gb→Hist Gradient Boosting, gradient_boost→Gradient Boosting, ridge→Ridge Regression).
@@ -89,24 +101,47 @@ In the Price Prediction section, include the model used as a bullet point: "**ML
 
 
 ## Price Prediction
-- **Predicted range:** the sub-range (e.g. $50K – $150K)
-- **Price bucket:** Small / Medium / Large / Very Large with confidence %
-- **Point estimate:** regression value in AUD
-- **Confidence:** High / Medium / Low / Very Low and a one-line reason
+- **ML model:** <model display name>
+- **Point estimate:** the exact value from `regression.point_estimate_aud`, formatted (e.g. $706,000)
+- **KNN price range:** the exact values from `knn_range.low_formatted` to `knn_range.high_formatted` — do NOT invent a different range
+- **Confidence:** High / Medium / Low / Very Low — state how many of the 7 fields were provided (e.g. "High — all 7 fields known")
 
 ## Similar Historical Contracts
 Show a markdown table with columns: Category | Gov Type | Method | Value
 List up to 5 similar contracts from the results. If none available, say so.
 
 ## Recommendation
-Write 2-3 sentences of plain prose. Do NOT mention "Alignment Case", "Scenario", "Case 1/2/3/4", or any internal logic labels whatsoever.
-
-Simply state which dollar range to use and why, based on whether the point estimate and/or bucket sub-range agree with similar historical contracts. Always give ONE clear recommended dollar range.
+One sentence only. State: the point estimate is $X, the KNN range of similar contracts is $Y to $Z (use the exact formatted values from the tool output). Do not synthesize, widen, or narrow these numbers.
 
 Keep the full briefing report on the right panel — the chat reply is the concise summary only.
 """
 
 TOOLS = [
+    {
+        "name": "lookup_procurement_codes",
+        "description": (
+            "Look up correct AusTender field values (UNSPSC codes, COFOG level, "
+            "procurement method strings) from a natural language description. "
+            "Use this before calling predict_contract whenever you need to determine "
+            "category_code, parent_category_code, publisher_cofog_level, or the exact "
+            "string for procurement_method."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "description": "Natural language description, e.g. 'IT security consulting' or 'Department of Defence function'",
+                },
+                "field": {
+                    "type": "string",
+                    "enum": ["category_code", "cofog", "procurement_method", "gov_type", "all"],
+                    "description": "Which field to look up. Use 'all' when unsure.",
+                },
+            },
+            "required": ["description"],
+        },
+    },
     {
         "name": "predict_contract",
         "description": (
@@ -119,7 +154,7 @@ TOOLS = [
                 "procurement_method":      {"type": "string", "description": "How the contract is procured"},
                 "disposition":             {"type": "string", "description": "Type of notice"},
                 "is_consultancy_services": {"type": "string", "description": "Yes or No"},
-                "publisher_gov_type":      {"type": "string", "description": "FED, STATE, or LOCAL"},
+                "publisher_gov_type":      {"type": "string", "description": "fed for federal, or state abbreviation: qld, nsw, vic, wa, act, sa, tas, nt"},
                 "category_code":           {"type": "string", "description": "UNSPSC commodity code"},
                 "parent_category_code":    {"type": "string", "description": "Parent UNSPSC code"},
                 "publisher_cofog_level":   {"type": "string", "description": "COFOG classification level"},
@@ -127,8 +162,7 @@ TOOLS = [
                 "duration_days":           {"type": "number", "description": "Intended contract duration from the procurement plan, in days"},
             },
             "required": [
-                "procurement_method", "disposition",
-                "is_consultancy_services", "publisher_gov_type",
+                "procurement_method", "disposition", "publisher_gov_type",
             ],
         },
     }
@@ -152,27 +186,31 @@ def _run_ml_prediction(contract: dict, model_key: str | None = None) -> dict:
     return json.loads(result.stdout)
 
 
-def _run_langchain_report(contract: dict, ml_results: dict) -> tuple[str, list[dict]]:
+def _run_langchain_report(contract: dict, ml_results: dict) -> tuple[str, list[dict], dict]:
     """
     Generate the full briefing report via the three-node LangGraph pipeline.
-    Returns (report_text, similar_contracts).
+    Returns (report_text, similar_contracts, knn_range).
     """
     from langchain_agents.graph import get_graph
 
     initial = {
         "contract":               contract,
         "regression_prediction":  ml_results.get("regression", {}),
-        "bucket_prediction":      ml_results.get("bucket", {}),
         "validation_result":      ml_results.get("validation", {}),
         "ml_critique":            "",
         "similar_contracts":      [],
+        "knn_range":              {},
         "analysis":               "",
         "report":                 "",
         "messages":               [],
         "errors":                 [],
     }
     result = get_graph().invoke(initial)
-    return result.get("report", "Report generation failed."), result.get("similar_contracts", [])
+    return (
+        result.get("report", "Report generation failed."),
+        result.get("similar_contracts", []),
+        result.get("knn_range", {}),
+    )
 
 
 # ── API models ─────────────────────────────────────────────────────────────────
@@ -228,10 +266,24 @@ def chat(req: ChatRequest):
             if block.type != "tool_use":
                 continue
 
+            # Domain lookup tool
+            if block.name == "lookup_procurement_codes":
+                from tools.domain_tools import lookup_procurement_codes
+                result = lookup_procurement_codes.invoke({
+                    "description": block.input.get("description", ""),
+                    "field":       block.input.get("field", "all"),
+                })
+                tool_results.append({
+                    "type":        "tool_result",
+                    "tool_use_id": block.id,
+                    "content":     result,
+                })
+                continue
+
             contract = {
                 "procurement_method":      block.input.get("procurement_method",      "unknown"),
                 "disposition":             block.input.get("disposition",             "unknown"),
-                "is_consultancy_services": block.input.get("is_consultancy_services", "unknown"),
+                "is_consultancy_services": "no",
                 "publisher_gov_type":      block.input.get("publisher_gov_type",      "unknown"),
                 "category_code":           block.input.get("category_code",           "unknown"),
                 "parent_category_code":    block.input.get("parent_category_code",    "unknown"),
@@ -244,10 +296,10 @@ def chat(req: ChatRequest):
                 ml_results = _run_ml_prediction(contract, model_key=req.model_key)
                 prediction = ml_results
 
-                report, similar = _run_langchain_report(contract, ml_results)
+                report, similar, knn_range = _run_langchain_report(contract, ml_results)
                 tool_output = json.dumps({
                     "regression":        ml_results.get("regression", {}),
-                    "bucket":            ml_results.get("bucket", {}),
+                    "knn_range":         knn_range,
                     "validation":        ml_results.get("validation", {}),
                     "similar_contracts": similar,
                 })

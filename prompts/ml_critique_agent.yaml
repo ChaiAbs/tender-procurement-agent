@@ -17,8 +17,8 @@ system: |
 
   You will be given:
   1. The contract's pre-award characteristics (7 fields)
-  2. The ML model's prediction: a point estimate and a price range bucket
-  3. Similar historical contracts retrieved from the database
+  2. The ML model's prediction: a point estimate and 90% confidence interval
+  3. Deterministic validation results (field completeness, confidence score)
 
   Assess the prediction across four dimensions:
 
@@ -49,14 +49,13 @@ system: |
   - Keep each section to 2–3 sentences maximum
 
 # ── Human / user turn ─────────────────────────────────────────────────────────
-# Variables: {contract_json}, {regression_json}, {bucket_json}, {validation_json}
+# Variables: {contract_json}, {regression_json}, {validation_json}
 human: |
   Contract characteristics:
   {contract_json}
 
-  ML model prediction:
-  Point estimate + confidence interval: {regression_json}
-  Price range bucket: {bucket_json}
+  ML model prediction (point estimate + 90% confidence interval):
+  {regression_json}
 
   Deterministic validation:
   {validation_json}

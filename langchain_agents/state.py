@@ -17,15 +17,15 @@ class TenderState(TypedDict):
     contract: dict                   # Raw contract dict with 7 pre-award fields
 
     # ── Pre-computed before graph (subprocess) ─────────────────────────────────
-    regression_prediction: dict      # XGBoost point estimate + CI
-    bucket_prediction: dict          # Two-stage bucket + sub-range
-    validation_result: dict          # Deterministic: field checks, confidence, consistency
+    regression_prediction: dict      # Point estimate + CI from active ML model
+    validation_result: dict          # Deterministic: field checks, confidence
 
     # ── Populated by ml_critique_node ─────────────────────────────────────────
     ml_critique: str                 # Plausibility assessment of ML outputs
 
     # ── Populated by analysis_node ─────────────────────────────────────────────
-    similar_contracts: list[dict]    # RAG results
+    similar_contracts: list[dict]    # KNN results
+    knn_range: dict                  # Price range derived from KNN: p10, median, p90
     analysis: str                    # Interpretation of similar contracts
 
     # ── Populated by reporting_node ────────────────────────────────────────────

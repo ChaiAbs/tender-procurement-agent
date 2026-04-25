@@ -59,20 +59,18 @@ def predict(contract: dict) -> dict:
         )
         ml_results            = json.loads(result.stdout)
         regression_prediction = ml_results.get("regression", {})
-        bucket_prediction     = ml_results.get("bucket", {})
         validation_result     = ml_results.get("validation", {})
     except Exception as e:
         regression_prediction = {"error": str(e)}
-        bucket_prediction     = {"error": str(e)}
         validation_result     = {"error": str(e)}
 
     initial: TenderState = {
         "contract":               contract,
         "regression_prediction":  regression_prediction,
-        "bucket_prediction":      bucket_prediction,
         "validation_result":      validation_result,
         "ml_critique":            "",
         "similar_contracts":      [],
+        "knn_range":              {},
         "analysis":               "",
         "report":                 "",
         "messages":               [],

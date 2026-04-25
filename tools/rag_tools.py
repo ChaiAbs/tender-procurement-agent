@@ -39,7 +39,7 @@ def search_similar_contracts(contract_json: str, n_results: int = RAG_N_RESULTS)
     except FileNotFoundError as exc:
         return json.dumps({
             "error": str(exc),
-            "hint": "Index the dataset first: python run_agent.py index --data tenders_export.xlsx",
+            "hint": "Build the KNN index first: python train_models.py",
         })
     except Exception as exc:
         return json.dumps({"error": str(exc)})

@@ -133,5 +133,14 @@ RAG_COLLECTION_NAME = "tenders"
 RAG_INDEX_SAMPLE    = 50_000   # rows to index (None = all)
 RAG_N_RESULTS       = 5        # similar contracts to retrieve per query
 
+# ── Domain RAG settings ────────────────────────────────────────────────────────
+DOMAIN_RAG_DIR             = os.path.join(BASE_DIR, "domain_rag_store")
+DOMAIN_RAG_COLLECTION_NAME = "domain"
+DOMAIN_RAG_N_RESULTS       = 5
+
+# Source files for domain knowledge indexing
+UNSPSC_FILE = os.path.join(BASE_DIR, "UNSPSC_codeset.xlsx")
+COFOG_FILE  = os.path.join(BASE_DIR, "COFOG_classification_UN_SeriesM84.pdf")
+
 # ── Prompts directory ──────────────────────────────────────────────────────────
 PROMPTS_DIR = os.path.join(BASE_DIR, "prompts")

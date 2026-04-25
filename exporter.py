@@ -5,7 +5,7 @@ Produces a .docx with:
   - Cover page with ML prediction summary table
   - Full procurement briefing report (parsed from markdown headings)
   - Plausibility critique and analyst commentary
-  - Raw numbers appendix (ML regression, bucket classifier)
+  - Raw numbers appendix (ML regression, KNN price range)
   - Similar historical contracts appendix
 
 Usage:
@@ -284,20 +284,24 @@ def export_to_word(result: dict, output_path: str) -> str:
     doc.add_paragraph()
 
     # ── Combined estimate summary box ─────────────────────────────────────────
-    reg      = result.get("regression_prediction", {})
-    bkt      = result.get("bucket_prediction", {})
-    contract = result.get("contract", {})
+    reg       = result.get("regression_prediction", {})
+    knn_range = result.get("knn_range", {})
+    contract  = result.get("contract", {})
 
     h = doc.add_heading("ML Price Prediction", level=2)
     _set_heading_color(h, HEADING_COLOR)
 
+    knn_range_str = (
+        f"{knn_range.get('low_formatted', '—')} – {knn_range.get('high_formatted', '—')}"
+        f" (median {knn_range.get('median_formatted', '—')})"
+        if knn_range else "N/A"
+    )
     summary_rows = [
-        ("Point estimate",   fmt_dollar(reg.get("point_estimate_aud"))),
-        ("90% CI lower",     fmt_dollar(reg.get("ci_low_90_aud"))),
-        ("90% CI upper",     fmt_dollar(reg.get("ci_high_90_aud"))),
-        ("Predicted bucket", bkt.get("predicted_bucket", "N/A")),
-        ("Predicted range",  bkt.get("predicted_subrange", "N/A")),
-        ("Bucket confidence", f"{bkt.get('bucket_probability', 'N/A')}"),
+        ("Point estimate",     fmt_dollar(reg.get("point_estimate_aud"))),
+        ("90% CI lower",       fmt_dollar(reg.get("ci_low_90_aud"))),
+        ("90% CI upper",       fmt_dollar(reg.get("ci_high_90_aud"))),
+        ("KNN range",          knn_range_str),
+        ("KNN contracts used", str(knn_range.get("n_contracts", "N/A"))),
     ]
     _add_kv_table(doc, summary_rows)
 
@@ -358,17 +362,18 @@ def export_to_word(result: dict, output_path: str) -> str:
         ]
         _add_kv_table(doc, reg_rows)
 
-    doc.add_heading("Statistical Model — Bucket Classifier", level=3)
-    if bkt:
-        bkt_rows = [
-            ("Predicted bucket",     bkt.get("predicted_bucket", "N/A")),
-            ("Bucket probability",   f"{bkt.get('bucket_probability', 'N/A')}"),
-            ("Predicted sub-range",  bkt.get("predicted_subrange", "N/A")),
-            ("Sub-range probability",f"{bkt.get('subrange_probability', 'N/A')}"),
-            ("Sub-range low",        fmt_dollar(bkt.get("subrange_low_aud"))),
-            ("Sub-range high",       fmt_dollar(bkt.get("subrange_high_aud"))),
+    doc.add_heading("KNN-Derived Price Range", level=3)
+    if knn_range:
+        knn_rows = [
+            ("Low (outliers excluded)",  knn_range.get("low_formatted", "N/A")),
+            ("Median",                   knn_range.get("median_formatted", "N/A")),
+            ("High (outliers excluded)", knn_range.get("high_formatted", "N/A")),
+            ("Contracts matched",        str(knn_range.get("n_contracts", "N/A"))),
+            ("Used in range",            str(knn_range.get("n_used", "N/A"))),
         ]
-        _add_kv_table(doc, bkt_rows)
+        _add_kv_table(doc, knn_rows)
+    else:
+        doc.add_paragraph("KNN range not available (index not built).")
 
     # ── Similar contracts ─────────────────────────────────────────────────────
     similar = result.get("similar_contracts", [])

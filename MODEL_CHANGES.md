@@ -131,12 +131,37 @@ This document summarises all model and architectural changes made since the init
 
 ---
 
+## 10. Contract Start Year and Quarter Added as Features
+
+**Change:** Added `contract_start_year` and `contract_start_quarter` as numeric features derived from the existing `contract_start` column.
+
+**Why:** Contract values grow over time due to inflation (~25–30% cumulative over 10 years). Year captures both the inflation trend and discrete policy/spending regime shifts. Quarter captures end-of-financial-year (Q4) budget rush patterns common in Australian Government procurement.
+
+**Implementation:**
+- `DataProcessor._compute_duration()` extended to derive `contract_start_year` and `contract_start_quarter` from `contract_start`
+- At inference, year/quarter default to current date if `contract_start` not provided
+- `NUMERIC_FEATURES` in `config.py` expanded from 1 to 3 features
+
+**R² impact:** 0.59 → 0.607 (+0.017)
+
+---
+
+## 11. Quantile Regression Evaluated and Rejected
+
+**Change:** Tested XGBoost quantile regression (median, alpha=0.5) with separate lower (0.05) and upper (0.95) models for CI bounds, to address systematic overestimation caused by right-skewed contract value distribution.
+
+**Result:** MAE(log) was identical (0.90 vs 0.9066) between median and mean regression, while R² dropped from 0.607 to 0.573 and training time tripled (3 models vs 1). No meaningful accuracy improvement.
+
+**Decision:** Reverted to mean (MSE) regression. Overestimation is noted as a known limitation of the training distribution rather than a fixable modelling choice.
+
+---
+
 ## Current State
 
 | Metric | Value |
 |---|---|
-| R² | 0.59 |
-| Features | 9 categorical + 1 numeric (10 total) |
+| R² | 0.607 |
+| Features | 9 categorical + 3 numeric (12 total) |
 | Training rows | ~1M |
 | Sub-range hit rate | 16% (vs 6.25% random) |
 | Encoding | XGBoost native categoricals |
@@ -147,7 +172,6 @@ This document summarises all model and architectural changes made since the init
 
 ## Known Limitations
 
-- **Systematic overestimation** — model targets the mean, which is inflated by large-contract outliers. Quantile/median regression could address this.
+- **Systematic overestimation** — model targets the mean, inflated by large-contract outliers. Quantile regression was tested but offered no improvement.
 - **Missing category_code** — one of the strongest features; missing at inference significantly reduces accuracy.
 - **Fundamental ceiling** — contract value is partly determined by scope, negotiations, and supplier bids, none of which are knowable pre-award. Estimated practical ceiling is R² ~0.65–0.70.
-- **Year/quarter not yet included** — temporal features could capture inflation trends and budget cycle patterns.

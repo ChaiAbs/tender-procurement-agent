@@ -8,7 +8,8 @@ Usage:
     python tools/ml_runner.py '<contract_json>' xgboost
     python tools/ml_runner.py '<contract_json>' lightgbm
 
-Prints a single JSON line with regression, bucket, and validation results.
+Prints a single JSON line with regression and validation results.
+Price range is derived from KNN similar contracts in the LangGraph pipeline.
 """
 
 import json
@@ -19,11 +20,10 @@ os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from ml_evaluation.evaluator    import get_active_model
-from pipeline.data_processor    import DataProcessor
-from pipeline.regressor         import Regressor
-from pipeline.bucket_classifier import predict_from_regression
-from pipeline.validator         import Validator
+from ml_evaluation.evaluator import get_active_model
+from pipeline.data_processor import DataProcessor
+from pipeline.regressor      import Regressor
+from pipeline.validator      import Validator
 
 contract_json = sys.argv[1]
 contract      = json.loads(contract_json)
@@ -36,21 +36,17 @@ dp = DataProcessor(verbose=False)
 dp._load_ohe_schema()
 X_infer = dp.preprocess_single(contract)
 
-regressor = Regressor(model_key=model_key, verbose=False)
+regressor  = Regressor(model_key=model_key, verbose=False)
 regression = regressor.predict(X_infer)
-
-bucket = predict_from_regression(regression.get("point_estimate_aud", 0))
 
 validator_context = {
     "contract":              contract,
     "regression_prediction": regression,
-    "bucket_prediction":     bucket,
 }
 Validator(verbose=False).run(validator_context)
 validation = validator_context.get("validation", {})
 
 print(json.dumps({
     "regression": regression,
-    "bucket":     bucket,
     "validation": validation,
 }))

@@ -4,31 +4,16 @@ validator.py — Validator
 Responsibilities:
   1. Validate that a new contract has all required pre-award fields.
   2. Check for unusual / suspicious feature values and warn the user.
-  3. Assess prediction confidence based on:
-       - Which bucket was predicted (Small = most reliable).
-       - The Stage 1 class probability (how certain the bucket classifier was).
-       - Whether the regression point estimate falls inside the predicted sub-range.
+  3. Assess prediction confidence based on regression CI width and field completeness.
   4. Surface a plain-English confidence label (High / Medium / Low / Very Low).
   5. Append any warnings or caveats to the context.
 
-Context keys consumed:  contract (dict), regression_prediction, bucket_prediction
-Context keys produced:  validation (dict with is_valid, warnings, confidence_label,
-                                    consistency_check)
+Context keys consumed:  contract (dict), regression_prediction
+Context keys produced:  validation (dict with is_valid, warnings, confidence_label)
 """
 
-import math
 from .base  import PipelineStep
-from config import PRE_AWARD_FEATURES, BUCKET_ORDER
-from utils  import fmt_dollar
-
-
-# Confidence scoring weights
-_BUCKET_CONFIDENCE_BONUS = {
-    "Small":      0.30,
-    "Medium":     0.15,
-    "Large":     -0.10,
-    "Very Large":-0.25,
-}
+from config import PRE_AWARD_FEATURES
 
 
 class Validator(PipelineStep):
@@ -46,13 +31,12 @@ class Validator(PipelineStep):
     def run(self, context: dict) -> dict:
         """
         Called by the orchestrator during inference.
-        Reads contract + predictions from context, writes validation results back.
+        Reads contract + regression prediction from context, writes validation results back.
         """
         self._start()
         try:
-            contract    = context.get("contract", {})
-            reg_pred    = context.get("regression_prediction", {})
-            bucket_pred = context.get("bucket_prediction", {})
+            contract = context.get("contract", {})
+            reg_pred = context.get("regression_prediction", {})
 
             warnings: list[str] = []
 
@@ -67,29 +51,11 @@ class Validator(PipelineStep):
             # 2. Suspicious value warnings
             warnings += self._check_suspicious_values(contract)
 
-            # 3. Confidence scoring
+            # 3. Confidence scoring (based on field completeness)
             confidence_score, confidence_label = self._score_confidence(
-                bucket_pred, reg_pred
+                reg_pred, len(missing)
             )
-
-            # 4. Consistency check: does regression estimate land in predicted sub-range?
-            consistency = self._check_consistency(reg_pred, bucket_pred)
-            if not consistency["consistent"]:
-                warnings.append(
-                    f"Regression estimate ({fmt_dollar(reg_pred.get('point_estimate_aud', 0))}) "
-                    f"falls outside predicted sub-range "
-                    f"({bucket_pred.get('predicted_subrange', '?')}). "
-                    "The bucket prediction is considered more reliable for a price range."
-                )
-
-            # 5. Bucket-level caveat
-            bucket = bucket_pred.get("predicted_bucket", "Unknown")
-            if bucket in ("Large", "Very Large"):
-                warnings.append(
-                    f"'{bucket}' contracts are harder to predict from pre-tender data alone "
-                    f"(paper hit rate: {10 if bucket == 'Large' else 3.6}% vs 25% baseline). "
-                    "Treat this prediction as directional only."
-                )
+            # Note: reg_pred kept as parameter for potential future use
 
             for w in warnings:
                 self.warn(w)
@@ -105,7 +71,6 @@ class Validator(PipelineStep):
                 "warnings":         warnings,
                 "confidence_score": round(confidence_score, 3),
                 "confidence_label": confidence_label,
-                "consistency":      consistency,
             }
             self._finish()
         except Exception as exc:
@@ -137,48 +102,20 @@ class Validator(PipelineStep):
             )
         return warnings
 
-    def _score_confidence(
-        self, bucket_pred: dict, reg_pred: dict
-    ) -> tuple[float, str]:
-        """
-        Score: starts at 0.50, adjusted by:
-          - Which bucket (bonus/penalty)
-          - Stage 1 class probability
-        """
-        bucket  = bucket_pred.get("predicted_bucket", "Medium")
-        s1_prob = bucket_pred.get("bucket_probability")  # None when derived from regression
+    def _score_confidence(self, reg_pred: dict, n_missing: int) -> tuple[float, str]:
+        """Confidence based solely on how many of the 7 pre-award fields are known."""
+        n_total = len(PRE_AWARD_FEATURES)
+        n_known = n_total - n_missing
 
-        score = 0.50
-        score += _BUCKET_CONFIDENCE_BONUS.get(bucket, 0.0)
-        if s1_prob is not None:
-            score += (s1_prob - 0.5) * 0.4   # scale probability deviation
-
-        score = max(0.0, min(1.0, score))
-
-        if score >= 0.65:
+        if n_known == n_total:
             label = "High"
-        elif score >= 0.45:
+        elif n_known >= 5:
             label = "Medium"
-        elif score >= 0.25:
+        elif n_known >= 3:
             label = "Low"
         else:
             label = "Very Low"
 
+        score = n_known / n_total
         return score, label
-
-    def _check_consistency(self, reg_pred: dict, bucket_pred: dict) -> dict:
-        point_est = reg_pred.get("point_estimate_aud", None)
-        lo        = bucket_pred.get("subrange_low_aud",  None)
-        hi        = bucket_pred.get("subrange_high_aud", None)
-
-        if point_est is None or lo is None:
-            return {"consistent": True, "note": "Cannot assess (missing data)."}
-
-        hi_check = hi if hi is not None else math.inf
-        inside   = lo <= point_est < hi_check
-        return {
-            "consistent": inside,
-            "regression_estimate": fmt_dollar(point_est),
-            "subrange":            f"{fmt_dollar(lo)} – {fmt_dollar(hi) if hi else '∞'}",
-        }
 
