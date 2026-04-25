@@ -28,6 +28,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
+os.environ.setdefault("CHROMA_CACHE_DIR", "/app/.chroma_cache")
 load_dotenv()
 
 app = FastAPI(title="Tender Price Prediction Agent")
