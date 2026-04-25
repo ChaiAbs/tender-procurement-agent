@@ -63,6 +63,19 @@ def _preload_onnx():
     except Exception as exc:
         print(f"[startup] Warning: could not pre-load KNN artifacts: {exc}", flush=True)
 
+    try:
+        import glob
+        from config import MODELS_DIR
+        total = 0
+        for path in glob.glob(os.path.join(MODELS_DIR, "*.pkl")):
+            with open(path, "rb") as fh:
+                while fh.read(1024 * 1024):
+                    pass
+            total += 1
+        print(f"[startup] Warmed GCS FUSE cache for {total} model files.", flush=True)
+    except Exception as exc:
+        print(f"[startup] Warning: could not warm model file cache: {exc}", flush=True)
+
 
 # ── In-memory session store (swap for Redis in production) ─────────────────────
 _sessions: dict[str, list[dict]] = {}
