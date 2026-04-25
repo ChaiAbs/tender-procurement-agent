@@ -3,26 +3,23 @@ langchain_agents/graph.py — LangGraph pipeline for tender price prediction.
 
 Graph topology:
 
-    START → ml_critique → analysis → reporting → END
+    START → analysis → reporting → END
 
-ml_critique : plausibility assessment of ML model outputs
-analysis    : RAG search + interpretation of similar historical contracts
-reporting   : final procurement briefing report synthesis
+analysis  : KNN search + interpretation of similar historical contracts
+reporting : plausibility assessment + final procurement briefing synthesis
 """
 
 from langgraph.graph import END, START, StateGraph
 
-from .nodes import analysis_node, ml_critique_node, reporting_node
+from .nodes import analysis_node, reporting_node
 from .state import TenderState
 
 
 def build_graph():
     builder = StateGraph(TenderState)
-    builder.add_node("ml_critique", ml_critique_node)
     builder.add_node("analysis", analysis_node)
     builder.add_node("reporting", reporting_node)
-    builder.add_edge(START, "ml_critique")
-    builder.add_edge("ml_critique", "analysis")
+    builder.add_edge(START, "analysis")
     builder.add_edge("analysis", "reporting")
     builder.add_edge("reporting", END)
     return builder.compile()
@@ -68,7 +65,6 @@ def predict(contract: dict) -> dict:
         "contract":               contract,
         "regression_prediction":  regression_prediction,
         "validation_result":      validation_result,
-        "ml_critique":            "",
         "similar_contracts":      [],
         "knn_range":              {},
         "analysis":               "",

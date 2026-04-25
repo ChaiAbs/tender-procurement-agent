@@ -211,7 +211,6 @@ def _run_langchain_report(contract: dict, ml_results: dict) -> tuple[str, list[d
         "contract":               contract,
         "regression_prediction":  ml_results.get("regression", {}),
         "validation_result":      ml_results.get("validation", {}),
-        "ml_critique":            "",
         "similar_contracts":      [],
         "knn_range":              {},
         "analysis":               "",

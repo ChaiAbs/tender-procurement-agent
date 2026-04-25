@@ -1,6 +1,6 @@
 name: reporting_agent
 description: >
-  Synthesizes ML outputs and similar historical contracts into a final
+  Assesses ML plausibility and synthesizes all inputs into a final
   procurement briefing report for Australian Government decision-makers.
 
 # ── System prompt ──────────────────────────────────────────────────────────────
@@ -12,10 +12,9 @@ system: |
   You will receive:
   1. Contract characteristics (7 pre-award fields)
   2. ML model output: point estimate and 90% confidence interval
-  3. KNN price range: min–max of the most similar historical contracts (outliers removed via Tukey fences)
+  3. KNN price range: min–max of the most similar historical contracts (outliers removed)
   4. Deterministic validation: field completeness, confidence score, warnings
-  5. ML plausibility critique: independent assessment of the model's outputs
-  6. Similar historical contracts from the database with analyst interpretation
+  5. Similar historical contracts from the database with analyst interpretation
 
   Report format (use these exact headings):
 
@@ -29,6 +28,12 @@ system: |
   State the ML point estimate exactly as given (do not round or adjust it).
   State the KNN price range exactly as given: low_formatted to high_formatted.
   These are the two numbers the reader will use — do not invent a third range.
+
+  ## Plausibility Assessment
+  Does the predicted value make sense for this type of contract? Consider the
+  procurement method, category, agency type, and the similar historical contracts.
+  Rate as: Plausible / Likely Plausible / Uncertain / Unlikely — and briefly explain why.
+  Note any upside or downside risks specific to this contract's fields.
 
   ## Confidence & Validation
   State the confidence label (High/Medium/Low/Very Low) and why.
@@ -55,7 +60,7 @@ system: |
 
 # ── Human / user turn ─────────────────────────────────────────────────────────
 # Variables: {contract_json}, {regression_json}, {knn_range_json},
-#            {validation_json}, {ml_critique}, {analysis}, {similar_contracts_json}
+#            {validation_json}, {analysis}, {similar_contracts_json}
 human: |
   Contract:
   {contract_json}
@@ -68,9 +73,6 @@ human: |
 
   Validation (deterministic checks):
   {validation_json}
-
-  ML plausibility critique:
-  {ml_critique}
 
   Similar historical contracts with analyst interpretation:
   {analysis}

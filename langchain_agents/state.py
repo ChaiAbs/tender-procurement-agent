@@ -20,9 +20,6 @@ class TenderState(TypedDict):
     regression_prediction: dict      # Point estimate + CI from active ML model
     validation_result: dict          # Deterministic: field checks, confidence
 
-    # ── Populated by ml_critique_node ─────────────────────────────────────────
-    ml_critique: str                 # Plausibility assessment of ML outputs
-
     # ── Populated by analysis_node ─────────────────────────────────────────────
     similar_contracts: list[dict]    # KNN results
     knn_range: dict                  # Price range derived from KNN: p10, median, p90

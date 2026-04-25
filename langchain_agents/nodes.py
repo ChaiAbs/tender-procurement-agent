@@ -1,13 +1,12 @@
 """
 langchain_agents/nodes.py — LangGraph node functions.
 
-Three-node pipeline:
+Two-node pipeline:
 
-    ml_critique → analysis → reporting
+    analysis → reporting
 
-ml_critique  : assesses plausibility of ML model outputs (no KNN)
-analysis     : KNN search + computes price range from similar contracts
-reporting    : synthesises all prior outputs into a final procurement briefing
+analysis  : KNN search + computes price range from similar contracts
+reporting : plausibility assessment + final procurement briefing synthesis
 """
 
 import json
@@ -83,30 +82,6 @@ def _compute_knn_range(similar_contracts: list[dict]) -> dict:
     }
 
 
-def ml_critique_node(state: TenderState) -> dict:
-    """
-    Assesses whether the ML model outputs are plausible for this contract.
-    Rates plausibility, identifies upside/downside risks, and gives a
-    one-sentence recommendation — all based on ML outputs alone (no KNN).
-    """
-    prompt = load_prompt("ml_critique_agent")
-    messages = [
-        SystemMessage(content=prompt["system"]),
-        HumanMessage(content=prompt["human"].format(
-            contract_json=json.dumps(state["contract"], indent=2),
-            regression_json=json.dumps(state.get("regression_prediction", {}), indent=2),
-            validation_json=json.dumps(state.get("validation_result", {}), indent=2),
-        )),
-    ]
-
-    response = _llm().invoke(messages)
-
-    return {
-        "ml_critique": response.content,
-        "messages": messages + [response],
-    }
-
-
 def analysis_node(state: TenderState) -> dict:
     """
     KNN search + interpretation of similar historical contracts.
@@ -132,7 +107,6 @@ def analysis_node(state: TenderState) -> dict:
         HumanMessage(content=prompt["human"].format(
             contract_json=json.dumps(state["contract"], indent=2),
             similar_contracts_json=similar_json,
-            ml_critique=state.get("ml_critique", "Not available."),
         )),
     ]
 
@@ -148,9 +122,9 @@ def analysis_node(state: TenderState) -> dict:
 
 def reporting_node(state: TenderState) -> dict:
     """
-    Final procurement briefing report.
-    Synthesises ML outputs, plausibility critique, KNN analysis, and
-    validation results into a document for procurement officers.
+    Plausibility assessment + final procurement briefing report.
+    Synthesises ML outputs, KNN analysis, and validation results into
+    a document for procurement officers.
     """
     prompt = load_prompt("reporting_agent")
     messages = [
@@ -161,7 +135,6 @@ def reporting_node(state: TenderState) -> dict:
             knn_range_json=json.dumps(state.get("knn_range", {}), indent=2),
             validation_json=json.dumps(state.get("validation_result", {}), indent=2),
             similar_contracts_json=json.dumps(state.get("similar_contracts", []), indent=2),
-            ml_critique=state.get("ml_critique", "Not available."),
             analysis=state.get("analysis", "Not available."),
         )),
     ]
