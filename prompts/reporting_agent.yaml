@@ -11,10 +11,11 @@ system: |
 
   You will receive:
   1. Contract characteristics (7 pre-award fields)
-  2. ML model outputs: point estimate, confidence interval, price range bucket
-  3. Deterministic validation: field completeness, confidence score, warnings
-  4. ML plausibility critique: independent assessment of the model's outputs
-  5. Similar historical contracts from the database with analyst interpretation
+  2. ML model output: point estimate and 90% confidence interval
+  3. KNN price range: min–max of the most similar historical contracts (outliers removed via Tukey fences)
+  4. Deterministic validation: field completeness, confidence score, warnings
+  5. ML plausibility critique: independent assessment of the model's outputs
+  6. Similar historical contracts from the database with analyst interpretation
 
   Report format (use these exact headings):
 
@@ -22,56 +23,48 @@ system: |
   2–3 sentences: what is this contract, the predicted value range, confidence level.
 
   ## Contract Overview
-  Translate the 7 contract fields into plain language. No raw field names.
+  Translate the contract fields into plain language. No raw field names.
 
   ## Price Prediction
-  Lead with the point estimate and range using formatted dollar amounts
-  (e.g. $1.23M or $450,000). Include the predicted price band.
-  State clearly how reliable the model is for this contract type:
-  - Small contracts (~47% accuracy): reliable
-  - Medium contracts (~35% accuracy): reasonably reliable
-  - Large contracts (~10% accuracy): directional only
-  - Very Large contracts (~3.6% accuracy): rough order of magnitude only
+  State the ML point estimate exactly as given (do not round or adjust it).
+  State the KNN price range exactly as given: low_formatted to high_formatted.
+  These are the two numbers the reader will use — do not invent a third range.
 
   ## Confidence & Validation
   State the confidence label (High/Medium/Low/Very Low) and why.
-  List any validation warnings (missing fields, direct sourcing, model
-  inconsistency). If no warnings, write "None identified."
+  List any validation warnings (missing fields, direct sourcing, wide CI).
+  If no warnings, write "None identified."
 
   ## Similar Historical Contracts
-  Summarise what similar past contracts cost and any patterns. If none, say so.
+  Summarise what similar past contracts cost and any patterns. Note if any outliers were excluded from the range. If none, say so.
 
   ## Recommendation
-  Give ONE clear, unambiguous recommended price range. Never leave the reader unsure which number to use.
+  Two sentences maximum. State: "The recommended planning range is [knn_range.low_formatted] to
+  [knn_range.high_formatted], with a point estimate of [regression point estimate]." Then one sentence
+  on whether the historical contracts support this or diverge.
 
-  The ML model's point estimate and price band are trained on the full dataset and are your primary anchor.
-  Historical contracts from the database are supporting evidence only — do NOT override the ML range based
-  on a single historical contract. Only adjust the recommended range if the majority of similar contracts
-  (3 or more) consistently point to a different range.
-
-  Write plain prose. Do NOT mention "Alignment Case", "Scenario", "Case 1/2/3/4", or any internal logic labels.
-
-  State the recommended range clearly (e.g. "$500,000 to $1.5 million"), reference the ML point estimate,
-  and note whether historical contracts support or diverge from it. End with when to seek independent cost
-  estimation (always for Very Large; for direct sourcing note reduced accuracy).
+  CRITICAL: Use the exact dollar figures from knn_range (low_formatted, high_formatted) and
+  regression (point_estimate_aud). Do NOT synthesize, widen, or narrow these numbers. Do NOT invent
+  a different range. The KNN range IS the planning range.
 
   Style rules:
   - Dollar amounts always formatted with $ and commas or M/K suffix
-  - No ML jargon (XGBoost, RMSE, log-space, bucket, regression, etc.)
+  - No ML jargon (regression, XGBoost, RMSE, log-space, bucket, Tukey, percentile)
   - Honest about uncertainty — do not oversell the model
+  - Do NOT mention "Alignment Case", "Scenario", "Case 1/2/3/4", or any internal logic labels
 
 # ── Human / user turn ─────────────────────────────────────────────────────────
-# Variables: {contract_json}, {regression_json}, {bucket_json},
+# Variables: {contract_json}, {regression_json}, {knn_range_json},
 #            {validation_json}, {ml_critique}, {analysis}, {similar_contracts_json}
 human: |
   Contract:
   {contract_json}
 
-  ML model — point estimate + confidence interval:
+  ML model — point estimate + 90% confidence interval:
   {regression_json}
 
-  ML model — price range bucket:
-  {bucket_json}
+  KNN price range (outlier-filtered range of similar contracts):
+  {knn_range_json}
 
   Validation (deterministic checks):
   {validation_json}

@@ -1,0 +1,202 @@
+# AusTender Valid Field Values
+# Normalised to lowercase. Values with <50 occurrences are collapsed to '<field>_other' by the model.
+
+## procurement_method  (62 values used by model, 754 raw)
+  open tender                                                   295,094
+  limited tender                                                289,059
+  demand driven                                                  67,807
+  closed non-competitive                                         37,981
+  prequalified tender                                            32,779
+  open competitive                                               21,102
+  targeted or restricted competitive                             19,893
+  limited                                                        15,311
+  not required                                                   12,784
+  selective                                                       8,873
+  not indicated                                                   8,113
+  open non-competitive                                            6,279
+  open                                                            6,062
+  open offer process                                              5,702
+  limited offer process                                           5,498
+  selective offer process                                         4,605
+  quotation                                                       4,131
+  select                                                          3,320
+  public tender                                                   2,956
+  restricted tender                                               2,290
+  single select                                                   1,628
+  limited sourcing                                                1,395
+  request for tender (rft)                                        1,299
+  non tender                                                      1,274
+  direct negotiation                                              1,126
+  open advertisement                                              1,039
+  cua
+							cuatps2019 - temporary personnel services common use arrangement (cua)      992
+  direct sourcing                                                   968
+  cua
+							cuaicts2015 - common use arrangement (cua) - information and communication technology (ict) services      965
+  selective tender                                                  899
+  sole source                                                       894
+  request for tender                                                830
+  invited tender                                                    479
+  open ito                                                          438
+  limited tendering direct sourcing                                 413
+  other                                                             387
+  goods and services purchase < $100,000                            383
+  cua cuatps2019 - temporary personnel services common use arrangement (cua)      361
+  request for quote (rfq)                                           358
+  cua
+							cuaicts2021 - information and communications technology (ict) services common use arrangement (cua)      354
+  cua
+							cuaafa2018 - audits and financial advisory services common use arrangement (cua)      295
+  restrictive ito                                                   281
+  prequalified                                                      234
+  goods and services purchase < $250,000                            231
+  single                                                            225
+  cua cuaicts2021 - information and communications technology (ict) services common use arrangement (cua)      189
+  minor works                                                       168
+  cua
+							cuacmd2014 - common use arrangement for the supply of computing and mobile devices      164
+  cua
+							cuaelc2012 - supply of retail electricity to government agencies - southwest interconnected system common use arrangement (cua)      158
+  request for quotation                                             126
+  other eoi to rfp                                                  115
+  cua cuaafa2018 - audits and financial advisory services common use arrangement (cua)      104
+  request for proposal (rfp)                                         98
+  soa                                                                87
+  arrangement - routine                                              86
+  minor works < $100,000                                             82
+  one-off/ad hoc                                                     80
+  closed                                                             76
+  ppa                                                                74
+  other
+							direct grant                                          73
+  standing offer                                                     58
+  result of exemption                                                54
+
+## disposition  (5 values used by model, 5 raw)
+  contract notice                                               843,892
+  grant                                                         167,452
+  request                                                        34,606
+  planned                                                         1,495
+  grant opportunity                                               1,130
+
+## is_consultancy_services  (1 values used by model, 1 raw)
+  no                                                            608,143
+
+## publisher_gov_type  (9 values used by model, 9 raw)
+  fed                                                           795,487
+  qld                                                           151,269
+  nsw                                                            35,123
+  vic                                                            26,474
+  wa                                                             20,422
+  act                                                             8,568
+  sa                                                              6,166
+  tas                                                             2,677
+  nt                                                              2,389
+
+## publisher_cofog_level  (2 values used by model, 2 raw)
+  2.0                                                           606,666
+  1.0                                                           346,111
+
+## category_code  (567 codes used by model — top 50 shown)
+  80111600.0           Temporary personnel services                         62,355
+  80120000.0           Legal services                                       41,835
+  81110000.0           Computer services                                    37,672
+  86000000.0           Education and Training Services                      30,053
+  80100000.0           Management advisory services                         27,285
+  80111700.0           Personnel recruitment                                17,815
+  43230000.0           Software                                             17,209
+  43210000.0           Computer Equipment and Accessories                   13,749
+  81112200.0           Software maintenance and support                     12,918
+  25111700.0           Military watercraft                                  11,593
+  43200000.0           Components for information technology or broadcasting or telecommunications   11,224
+  80000000.0           Management and Business Professionals and Administrative Services   10,606
+  80101507.0           Information technology consultation services          9,122
+  72000000.0           Building and Facility Construction and Maintenance Services    8,916
+  80131500.0           Lease and rental of property or building              8,355
+  81100000.0           Professional engineering services                     7,758
+  80101600.0           Project management                                    7,556
+  80160000.0           Business administration services                      7,335
+  77560.0              Building and Construction and Maintenance Services    7,295
+  80161500.0           Management support services                           7,229
+  93131703.0           Research programs                                     6,868
+  105040.0             Building construction and support and maintenance and repair services    6,538
+  25200000.0           Aerospace systems and components and equipment        5,832
+  25111900.0           Marine craft systems and subassemblies                5,429
+  106039.0             Building construction and support and maintenance and repair services    5,313
+  85000000.0           Healthcare Services                                   5,233
+  80110000.0           Human resources services                              5,104
+  43000000.0           Information Technology Broadcasting and Telecommunications    4,854
+  93140000.0           Community and social services                         4,847
+  25102000.0           War vehicles                                          4,845
+  43190000.0           Communications Devices and Accessories                4,557
+  84111600.0           Audit services                                        4,255
+  41100000.0           Laboratory and scientific equipment                   4,129
+  85100000.0           Comprehensive health services                         4,016
+  81111500.0           Software or hardware engineering                      3,759
+  93142100.0           Regional development                                  3,740
+  80101504.0           Strategic planning consultation services              3,722
+  72100000.0           Building and facility maintenance and repair services    3,681
+  42000000.0           Medical Equipment and Accessories and Supplies        3,646
+  25100000.0           Motor vehicles                                        3,590
+  15100000.0           Fuels                                                 3,367
+  77100000.0           Environmental management                              3,205
+  56101700.0           Office furniture                                      3,057
+  32130000.0           Electronic hardware and component parts and accessories    3,026
+  81112000.0           Data services                                         2,890
+  46171600.0           Surveillance and detection equipment                  2,831
+  83000000.0           Public Utilities and Public Sector Related Services    2,828
+  92111700.0           Military science and research                         2,685
+  78181500.0           Vehicle maintenance and repair services               2,682
+  41110000.0           Measuring and observing and testing instruments       2,562
+
+## parent_category_code  (55 codes used by model — top 50 shown)
+  80000000.0           Management and Business Professionals and Administrative Services  233,315
+  81000000.0           Engineering and Research and Technology Based Services  104,832
+  43000000.0           Information Technology Broadcasting and Telecommunications   65,216
+  72000000.0           Building and Facility Construction and Maintenance Services   58,318
+  91000000.0           Personal and Domestic Services                       49,710
+  85000000.0           Healthcare Services                                  47,439
+  25000000.0           Commercial and Military and Private Vehicles and their Accessories and Components   46,424
+  93000000.0           Politics and Civic Affairs Services                  40,129
+  46000000.0           Defense and Law Enforcement and Security and Safety Equipment and Supplies   16,893
+  78000000.0           Transportation and Storage and Mail Services         16,772
+  90000000.0           Travel and Food and Lodging and Entertainment Services   16,157
+  92000000.0           National Defense and Public Order and Security and Safety Services   15,644
+  30000000.0           Structures and Building and Construction and Manufacturing Components and Supplies   14,067
+  82000000.0           Editorial and Design and Graphic and Fine Art Services   12,831
+  83000000.0           Public Utilities and Public Sector Related Services   10,044
+  86000000.0           Education and Training Services                       8,785
+  84000000.0           Financial and Insurance Services                      8,741
+  77000000.0           Environmental Services                                8,083
+  41000000.0           Laboratory and Measuring and Observing and Testing Equipment    7,495
+  15000000.0           Fuels and Fuel Additives and Lubricants and Anti corrosive Materials    6,870
+  94000000.0           Organizations and Clubs                               6,868
+  56000000.0           Furniture and Furnishings                             5,750
+  70000000.0           Farming and Fishing and Forestry and Wildlife Contracting Services    5,674
+  31000000.0           Manufacturing Components and Supplies                 4,093
+  50000000.0           Food Beverage and Tobacco Products                    3,735
+  32000000.0           Electronic Components and Supplies                    3,479
+  24000000.0           Material Handling and Conditioning and Storage Machinery and their Accessories and Supplies    3,406
+  55000000.0           Published Products                                    3,171
+  95000000.0           Land and Buildings and Structures and Thoroughfares    2,844
+  45000000.0           Printing and Photographic and Audio and Visual Equipment and Supplies    2,787
+  44000000.0           Office Equipment and Accessories and Supplies         2,741
+  26000000.0           Power Generation and Distribution Machinery and Accessories    2,725
+  76000000.0           Industrial Cleaning Services                          2,646
+  53000000.0           Apparel and Luggage and Personal Care Products        2,599
+  39000000.0           Electrical Systems and Lighting and Components and Accessories and Supplies    2,553
+  42000000.0           Medical Equipment and Accessories and Supplies        2,290
+  40000000.0           Distribution and Conditioning Systems and Equipment and Components    1,957
+  49000000.0           Sports and Recreational Equipment and Supplies and Accessories    1,466
+  14000000.0           Paper Materials and Products                          1,408
+  73000000.0           Industrial Production and Manufacturing Services      1,169
+  52000000.0           Domestic Appliances and Supplies and Consumer Electronic Products    1,115
+  23000000.0           Industrial Manufacturing and Processing Machinery and Accessories    1,098
+  60000000.0           Musical Instruments and Games and Toys and Arts and Crafts and Educational Equipment and Materials and Accessories and Supplies      953
+  11000000.0           Mineral and Textile and Inedible Plant and Animal Materials      898
+  12000000.0           Chemicals including Bio Chemicals and Gas Materials      888
+  22000000.0           Building and Construction Machinery and Accessories      853
+  47000000.0           Cleaning Equipment and Supplies                         814
+  10000000.0           Live Plant and Animal Material and Accessories and Supplies      668
+  71000000.0           Mining and oil and gas services                         366
+  20000000.0           Mining and Well Drilling Machinery and Accessories      364
