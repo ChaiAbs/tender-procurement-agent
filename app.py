@@ -28,7 +28,6 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
-os.environ.setdefault("CHROMA_CACHE_DIR", "/app/.chroma_cache")
 load_dotenv()
 
 app = FastAPI(title="Tender Price Prediction Agent")
@@ -44,7 +43,8 @@ def _preload_onnx():
     """
     try:
         from chromadb.utils.embedding_functions import ONNXMiniLM_L6_V2
-        ONNXMiniLM_L6_V2()
+        ef = ONNXMiniLM_L6_V2()
+        ef(["warmup"])
         print("[startup] ChromaDB ONNX model ready.", flush=True)
     except Exception as exc:
         print(f"[startup] Warning: could not pre-load ONNX model: {exc}", flush=True)

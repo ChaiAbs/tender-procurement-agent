@@ -15,9 +15,7 @@ RUN pip install --no-cache-dir -r requirements.txt \
 # Pre-download ChromaDB ONNX embedding model so it's baked into the image.
 # CHROMA_CACHE_DIR pins the cache to a known path inside the image layer.
 # Without this it downloads 79MB on the first request, causing cold-start timeouts.
-ENV CHROMA_CACHE_DIR=/app/.chroma_cache
-RUN python -c "from chromadb.utils.embedding_functions import ONNXMiniLM_L6_V2; ONNXMiniLM_L6_V2()" \
-    && echo "ONNX model cached at $CHROMA_CACHE_DIR"
+RUN python -c "from chromadb.utils.embedding_functions import ONNXMiniLM_L6_V2; ef = ONNXMiniLM_L6_V2(); ef(['warmup']); print('ONNX baked to', ef.DOWNLOAD_PATH)"
 
 # Copy application code
 COPY . .
