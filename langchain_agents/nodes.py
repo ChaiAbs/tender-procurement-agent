@@ -10,6 +10,7 @@ reporting : plausibility assessment + final procurement briefing synthesis
 """
 
 import json
+import time
 
 import numpy as np
 from langchain_anthropic import ChatAnthropic
@@ -87,7 +88,9 @@ def analysis_node(state: TenderState) -> dict:
     KNN search + interpretation of similar historical contracts.
     Computes a KNN-grounded price range (10th–90th percentile) from results.
     """
+    t0 = time.time()
     similar_raw = search_similar_contracts.invoke({"contract_json": json.dumps(state["contract"])})
+    print(f"[timing] KNN search: {time.time() - t0:.1f}s", flush=True)
     try:
         similar_contracts: list[dict] = json.loads(similar_raw)
         if isinstance(similar_contracts, dict) and "error" in similar_contracts:
@@ -101,6 +104,7 @@ def analysis_node(state: TenderState) -> dict:
 
     knn_range = _compute_knn_range(similar_contracts)
 
+    t1 = time.time()
     prompt = load_prompt("analysis_agent")
     messages = [
         SystemMessage(content=prompt["system"]),
@@ -111,6 +115,7 @@ def analysis_node(state: TenderState) -> dict:
     ]
 
     response = _llm().invoke(messages)
+    print(f"[timing] analysis LLM call: {time.time() - t1:.1f}s", flush=True)
 
     return {
         "similar_contracts": similar_contracts,
@@ -139,7 +144,9 @@ def reporting_node(state: TenderState) -> dict:
         )),
     ]
 
+    t0 = time.time()
     response = _llm().invoke(messages)
+    print(f"[timing] reporting LLM call: {time.time() - t0:.1f}s", flush=True)
 
     return {
         "report":   response.content,

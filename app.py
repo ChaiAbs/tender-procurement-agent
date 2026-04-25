@@ -63,6 +63,7 @@ def _preload_onnx():
     except Exception as exc:
         print(f"[startup] Warning: could not pre-load KNN artifacts: {exc}", flush=True)
 
+
 # ── In-memory session store (swap for Redis in production) ─────────────────────
 _sessions: dict[str, list[dict]] = {}
 
@@ -194,14 +195,17 @@ TOOLS = [
 
 def _run_ml_prediction(contract: dict, model_key: str | None = None) -> dict:
     """Call the ML pipeline in a subprocess (isolates XGBoost/OpenMP from async)."""
+    import time
     from ml_evaluation.evaluator import get_active_model
     key    = model_key or get_active_model()
     runner = os.path.join(os.path.dirname(__file__), "tools", "ml_runner.py")
+    t0 = time.time()
     result = subprocess.run(
         [sys.executable, runner, json.dumps(contract), key],
         capture_output=True, text=True, timeout=60,
         env={**os.environ, "KMP_DUPLICATE_LIB_OK": "TRUE"},
     )
+    print(f"[timing] ML subprocess: {time.time() - t0:.1f}s", flush=True)
     if result.returncode != 0 or not result.stdout.strip():
         raise RuntimeError(result.stderr or "ML runner returned no output")
     return json.loads(result.stdout)
@@ -262,8 +266,10 @@ def chat(req: ChatRequest):
     reply      = ""
 
     # Agentic loop — handles tool use transparently
+    import time as _time
     messages = list(history)
     while True:
+        _t = _time.time()
         response = _client.messages.create(
             model=os.environ.get("LLM_MODEL", "claude-sonnet-4-6"),
             max_tokens=2048,
@@ -272,6 +278,7 @@ def chat(req: ChatRequest):
             messages=messages,
         )
 
+        print(f"[timing] Claude API call: {_time.time() - _t:.1f}s", flush=True)
         # Collect any text from this response turn
         for block in response.content:
             if block.type == "text":
