@@ -110,6 +110,12 @@ def main() -> None:
         df = evaluator.evaluate_all(X_train, X_test, y_train, y_test)
         _print_table(df)
 
+    # ── Build KNN retrieval index ──────────────────────────────────────────────
+    if not args.model:
+        print("\nBuilding KNN retrieval index …")
+        from rag.knn_retriever import build_knn_index
+        build_knn_index(context["X_train"], context["raw_df"])
+
     # ── Set active model ───────────────────────────────────────────────────────
     if args.set:
         set_active_model(args.set)

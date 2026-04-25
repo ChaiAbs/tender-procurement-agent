@@ -30,7 +30,7 @@ def search_similar_contracts(contract_json: str, n_results: int = RAG_N_RESULTS)
             similarity_score       — 0–1, higher = more similar
     """
     # Import here to avoid loading ChromaDB at module import time
-    from rag.retriever import search_contracts
+    from rag.knn_retriever import search_contracts
 
     try:
         contract = json.loads(contract_json)
