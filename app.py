@@ -56,6 +56,13 @@ def _preload_onnx():
     except Exception as exc:
         print(f"[startup] Warning: could not pre-load domain RAG: {exc}", flush=True)
 
+    try:
+        from rag.knn_retriever import _load
+        _load()
+        print("[startup] KNN artifacts loaded.", flush=True)
+    except Exception as exc:
+        print(f"[startup] Warning: could not pre-load KNN artifacts: {exc}", flush=True)
+
 # ── In-memory session store (swap for Redis in production) ─────────────────────
 _sessions: dict[str, list[dict]] = {}
 
