@@ -37,9 +37,9 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 @app.on_event("startup")
 def _preload_onnx():
     """
-    Download and cache the ChromaDB ONNX embedding model at container startup.
-    Without this, the first request that hits the RAG triggers a 79MB download
-    mid-request, which causes Cloud Run timeouts.
+    Pre-load ONNX embedding model and warm up both ChromaDB collections.
+    Without this, the first RAG request triggers a 79MB download mid-request,
+    causing Cloud Run timeouts.
     """
     try:
         from chromadb.utils.embedding_functions import ONNXMiniLM_L6_V2
@@ -47,6 +47,13 @@ def _preload_onnx():
         print("[startup] ChromaDB ONNX model ready.", flush=True)
     except Exception as exc:
         print(f"[startup] Warning: could not pre-load ONNX model: {exc}", flush=True)
+
+    try:
+        from rag.domain_retriever import _get_collection
+        _get_collection()
+        print("[startup] Domain RAG collection loaded.", flush=True)
+    except Exception as exc:
+        print(f"[startup] Warning: could not pre-load domain RAG: {exc}", flush=True)
 
 # ── In-memory session store (swap for Redis in production) ─────────────────────
 _sessions: dict[str, list[dict]] = {}
@@ -87,14 +94,19 @@ Field extraction rules:
 - For category_code and parent_category_code: ALWAYS call lookup_procurement_codes with
   field="category_code" and a description of what is being purchased before setting these.
   Never guess a UNSPSC code from memory. The tool returns both category_code AND
-  parent_category_code — use both values directly from the top result.
-- For publisher_cofog_level: call lookup_procurement_codes with field="cofog" and a
-  description of the agency's government function. Only two values exist: "1.0" or "2.0".
-- For procurement_method: use exact lowercase strings from the training data. Common values:
-  "open tender", "limited tender", "direct sourcing", "select tender", "demand driven".
-  Call lookup_procurement_codes with field="procurement_method" if unsure.
-- For publisher_gov_type: "fed" for federal agencies, or state code: "qld", "nsw", "vic",
-  "wa", "act", "sa", "tas", "nt".
+  parent_category_code — use the top result directly. Do NOT ask the user to confirm
+  the code — just use the best match and proceed.
+- For publisher_cofog_level: only two values exist — "1.0" or "2.0". Use "2.0" for all
+  health, education, defence, social services, and most line agencies. Use "1.0" for
+  central/cross-government agencies (e.g. Finance, Treasury, APS Commission). Do NOT
+  call lookup_procurement_codes for COFOG — just apply this rule directly.
+- For publisher_gov_type: any agency named "Department of [X]" or "Australian [X]" or
+  "Commonwealth [X]" without a state name is "fed". State agencies include the state name
+  (e.g. "NSW Health", "Queensland Treasury"). Use the state code: "qld", "nsw", "vic",
+  "wa", "act", "sa", "tas", "nt". Do NOT ask the user to confirm this — infer it from
+  the agency name.
+- For procurement_method: use exact lowercase strings. Common values: "open tender",
+  "limited tender", "direct sourcing", "select tender", "demand driven".
 
 After getting the prediction, reply with exactly these three sections.
 In the Price Prediction section, include the model used as a bullet point: "**ML model:** XGBoost" — use the display name matching the model_key (xgboost→XGBoost, lightgbm→LightGBM, catboost→CatBoost, random_forest→Random Forest, extra_trees→Extra Trees, hist_gb→Hist Gradient Boosting, gradient_boost→Gradient Boosting, ridge→Ridge Regression).
