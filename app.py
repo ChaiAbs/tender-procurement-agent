@@ -86,7 +86,8 @@ Guidelines:
 Field extraction rules:
 - For category_code and parent_category_code: ALWAYS call lookup_procurement_codes with
   field="category_code" and a description of what is being purchased before setting these.
-  Never guess a UNSPSC code from memory.
+  Never guess a UNSPSC code from memory. The tool returns both category_code AND
+  parent_category_code — use both values directly from the top result.
 - For publisher_cofog_level: call lookup_procurement_codes with field="cofog" and a
   description of the agency's government function. Only two values exist: "1.0" or "2.0".
 - For procurement_method: use exact lowercase strings from the training data. Common values:

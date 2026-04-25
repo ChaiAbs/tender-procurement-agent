@@ -53,7 +53,11 @@ def lookup_procurement_codes(description: str, field: str = "all") -> str:
             entry = {"similarity": r["similarity_score"], "source": r["source"]}
 
             if r["source"] == "unspsc":
-                entry["category_code"]        = meta.get("code")
+                code = meta.get("code", "")
+                # parent_category_code is always the segment: first 2 digits + "000000"
+                parent = code[:2] + "000000" if len(code) >= 2 else "unknown"
+                entry["category_code"]        = code
+                entry["parent_category_code"] = parent
                 entry["name"]                 = meta.get("title")
                 entry["hierarchy"]            = meta.get("hierarchy")
 
