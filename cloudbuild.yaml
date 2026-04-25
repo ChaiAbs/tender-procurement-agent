@@ -25,6 +25,8 @@ steps:
       - --add-volume-mount=volume=rag-store,mount-path=/app/rag_store
       - --add-volume=name=models,type=cloud-storage,bucket=tender-agent-assets,mount-options=only-dir=models
       - --add-volume-mount=volume=models,mount-path=/app/models
+      - --add-volume=name=domain-rag,type=cloud-storage,bucket=tender-agent-assets,mount-options=only-dir=domain_rag_store
+      - --add-volume-mount=volume=domain-rag,mount-path=/app/domain_rag_store
 
 options:
   logging: CLOUD_LOGGING_ONLY

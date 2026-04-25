@@ -8,3 +8,5 @@ __pycache__/
 .env
 .git/
 models/
+rag_store/
+domain_rag_store/
