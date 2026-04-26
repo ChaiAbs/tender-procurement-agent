@@ -65,16 +65,17 @@ def _preload_onnx():
 
     try:
         import glob
-        from config import MODELS_DIR
+        from config import MODELS_DIR, DOMAIN_RAG_DIR
         total = 0
-        for path in glob.glob(os.path.join(MODELS_DIR, "*.pkl")):
-            with open(path, "rb") as fh:
-                while fh.read(1024 * 1024):
-                    pass
-            total += 1
-        print(f"[startup] Warmed GCS FUSE cache for {total} model files.", flush=True)
+        for path in glob.glob(os.path.join(MODELS_DIR, "*.pkl")) + glob.glob(os.path.join(DOMAIN_RAG_DIR, "**", "*"), recursive=True):
+            if os.path.isfile(path):
+                with open(path, "rb") as fh:
+                    while fh.read(1024 * 1024):
+                        pass
+                total += 1
+        print(f"[startup] Warmed GCS FUSE cache for {total} files.", flush=True)
     except Exception as exc:
-        print(f"[startup] Warning: could not warm model file cache: {exc}", flush=True)
+        print(f"[startup] Warning: could not warm file cache: {exc}", flush=True)
 
 
 # ── In-memory session store (swap for Redis in production) ─────────────────────
@@ -309,10 +310,12 @@ def chat(req: ChatRequest):
             # Domain lookup tool
             if block.name == "lookup_procurement_codes":
                 from tools.domain_tools import lookup_procurement_codes
+                _t_rag = _time.time()
                 result = lookup_procurement_codes.invoke({
                     "description": block.input.get("description", ""),
                     "field":       block.input.get("field", "all"),
                 })
+                print(f"[timing] lookup_procurement_codes: {_time.time() - _t_rag:.1f}s", flush=True)
                 tool_results.append({
                     "type":        "tool_result",
                     "tool_use_id": block.id,
