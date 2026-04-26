@@ -1,67 +1,55 @@
-# Tender Price Prediction — Multi-Agent System
+# Tender Price Prediction Agent
 
-A multi-agent ML pipeline that predicts Australian Government contract prices from pre-award tender information only.
-
----
-
-## Demo
-
-### Conversational Interface
-The agent collects contract details through natural language dialogue — no forms to fill in. It asks for missing fields one at a time and confirms what it has before running the prediction.
-
-![Conversational Interface](docs/demo/chat_conversation.png)
-
-*The assistant extracts contract fields from free-text input and asks only for what it's missing. Once enough information is collected it automatically triggers the ML pipeline.*
+A conversational ML agent that predicts Australian Government contract prices from pre-award tender information only.
 
 ---
 
-### Price Prediction Report
-After collecting the contract details, the agent runs the ML pipeline and generates a full procurement briefing report in the right panel.
+## How It Works
 
-![Prediction Report](docs/demo/prediction_report.png)
+### 1. Describe your procurement in plain English
+Type a natural language description of what you're procuring — no forms, no codes.
 
-*The report includes a point estimate, 90% confidence interval, price band (Small/Medium/Large/Very Large), sub-range, and a confidence assessment. All dollar amounts are derived from the XGBoost regression model trained on 1M+ historical AusTender contracts.*
+![Greeting and prompt](screenshots/greeting.png)
 
----
+*Example: "I need to procure data services for the Department of Health via open tender. It will be a contract notice, approximately 18 months duration, starting mid-2024."*
 
-### Similar Historical Contracts
-The report surfaces the most similar historical contracts from the RAG index to give procurement officers real-world anchors.
-
-![Similar Contracts](docs/demo/similar_contracts.png)
-
-*ChromaDB vector search retrieves the 5 most similar past contracts by procurement characteristics. These are used as supporting evidence — the ML point estimate remains the primary recommendation anchor.*
+The agent automatically extracts all required fields from your description. It uses a domain RAG (UNSPSC codes, COFOG levels, AusTender valid values) to resolve commodity codes and agency details — you never need to look these up manually.
 
 ---
 
-### Recommendation
-The report closes with a plain-language recommended dollar range for budget planning and market engagement.
+### 2. Receive a full procurement briefing report
+The agent runs the ML pipeline and generates a structured report in the right panel.
 
-![Recommendation](docs/demo/recommendation.png)
+![Prediction result](screenshots/result.png)
 
-*The recommendation anchors to the ML point estimate by default. It only adjusts if the majority of similar historical contracts consistently suggest a different range.*
+The report includes:
+- **Point estimate** — ML regression prediction (XGBoost trained on 1M+ AusTender contracts)
+- **KNN price range** — outlier-filtered min/max from the most similar historical contracts
+- **Plausibility assessment** — whether the estimate makes sense for this contract type
+- **Confidence level** — based on how many of the 7 fields were known
+- **Similar historical contracts** — up to 5 past contracts with comparable characteristics
+- **Recommendation** — plain-language planning range for budget and market engagement
 
 ---
 
 ## Architecture
 
 ```
-User (chat)
-    │
-    ▼
-FastAPI + Anthropic Claude (conversational field collection)
-    │
-    ▼
-ML Runner (subprocess)
-    ├── DataProcessor     — cleans & encodes contract features
-    ├── XGBoost Regressor — point estimate + 90% CI
-    ├── predict_from_regression() — deterministic bucket/sub-range
-    └── Validator         — confidence scoring + warnings
-    │
-    ▼
-LangGraph Pipeline
-    ├── ml_critique node  — plausibility assessment of ML outputs
-    ├── analysis node     — RAG search + similar contract interpretation
-    └── reporting node    — full procurement briefing report synthesis
+User (natural language description)
+        │
+        ▼
+Claude (conversational agent)
+  ├── lookup_procurement_codes  — resolves UNSPSC codes via domain RAG
+  └── predict_contract          — triggers ML pipeline when fields collected
+        │
+        ├── ML Runner (subprocess)
+        │     ├── DataProcessor   — cleans & encodes contract features
+        │     ├── Regressor       — point estimate (XGBoost / LightGBM / CatBoost etc.)
+        │     └── Validator       — field completeness + confidence scoring
+        │
+        └── LangGraph Pipeline
+              ├── analysis node   — KNN search + similar contract interpretation
+              └── reporting node  — plausibility assessment + full briefing report
 ```
 
 ---
@@ -73,14 +61,14 @@ LangGraph Pipeline
 pip install -r requirements.txt
 ```
 
-### 2. Train (runs once — saves models to ./models/)
+### 2. Train models
 ```bash
-python orchestrator.py --mode train --data tenders_export.xlsx
+python train_models.py --data tenders_export.xlsx
 ```
 
-### 3. Index tenders into RAG
+### 3. Build domain RAG index
 ```bash
-python run_agent.py index --data tenders_export.xlsx
+python rag/domain_indexer.py
 ```
 
 ### 4. Run the web app
@@ -88,58 +76,34 @@ python run_agent.py index --data tenders_export.xlsx
 python app.py
 ```
 
-### 5. Predict via CLI
-```bash
-python run_agent.py predict \
-  --procurement-method "open tender" \
-  --disposition "contract notice" \
-  --is-consultancy-services "no" \
-  --publisher-gov-type "FED" \
-  --category-code "81111500" \
-  --parent-category-code "81000000" \
-  --publisher-cofog-level "2" \
-  --publisher-name "Department of Defence" \
-  --duration-days 365
-```
-
-### 6. Evaluate on the dataset
-```bash
-python orchestrator.py --mode evaluate --data tenders_export.xlsx
-```
+Open [http://localhost:8000](http://localhost:8000)
 
 ---
 
-## Pre-award features used
+## Pre-award Features
 
 | Feature | Description |
 |---|---|
 | `procurement_method` | Open tender, direct sourcing, select tender, etc. |
-| `disposition` | Contract notice, standing offer notice, amendment |
-| `is_consultancy_services` | Yes / No |
-| `publisher_gov_type` | FED / STATE / LOCAL |
+| `disposition` | Contract notice, standing offer notice |
+| `publisher_gov_type` | fed / qld / nsw / vic / wa / act / sa / tas / nt |
 | `category_code` | 8-digit UNSPSC commodity code |
-| `parent_category_code` | Top-level UNSPSC category |
-| `publisher_cofog_level` | Government functional classification level |
-| `publisher_name` | Publishing agency name (auto-derives portfolio and COFOG) |
-| `publisher_portfolio` | Agency portfolio (auto-derived from publisher_name lookup) |
-| `duration_days` | Intended contract duration from procurement plan |
-| `contract_start_year` | Year of contract start (captures inflation trends) |
-| `contract_start_quarter` | Quarter of contract start (captures budget cycle patterns) |
+| `parent_category_code` | UNSPSC segment (auto-derived) |
+| `publisher_cofog_level` | Government functional classification |
+| `publisher_name` | Publishing agency name |
+| `duration_days` | Intended contract duration in days |
 
 ---
 
 ## Model Performance
 
-| Change | R² |
-|---|---|
-| Baseline (7 features, OHE) | 0.38 |
-| + duration_days | 0.52 |
-| + publisher_name, native categoricals | 0.59 |
-| + contract_start_year / quarter | 0.607 |
+| Model | R² | MAE (log) |
+|---|---|---|
+| XGBoost | 0.61 | — |
+| LightGBM | — | — |
+| CatBoost | — | — |
 
-- **Training rows:** ~1M AusTender contracts
-- **Encoding:** XGBoost native categoricals (no one-hot encoding)
-- **Sub-range hit rate:** 16% vs 6.25% random baseline
-- **Bucket assignment:** Deterministic from regression point estimate
+- **Training data:** ~1M AusTender contracts
+- **Multiple models supported** — switch active model via the UI dropdown
 
-See [MODEL_CHANGES.md](MODEL_CHANGES.md) for a full history of architectural decisions.
+See [MODEL_CHANGES.md](MODEL_CHANGES.md) for full architecture history.
