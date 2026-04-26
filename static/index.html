@@ -371,20 +371,11 @@
   // Render intro message as markdown
   const introText = `Hi! I can predict the price range for an Australian Government tender contract.
 
-Tell me about the contract — what it's for, how it's being procured, whether it's consultancy, and the government entity involved. I'll need the following details:
+Describe your procurement in plain English and I'll extract the details automatically. For example:
 
-| Field | Example |
-|---|---|
-| Procurement method | Open tender, Direct sourcing |
-| Disposition | Contract Notice, Standing Offer |
-| Consultancy services | Yes / No |
-| Government type | FED, STATE, LOCAL |
-| Category code | 81111500 |
-| Parent category code | 81000000 |
-| COFOG level | 2 |
-| Contract duration | 365 days, 2 years, 6 months |
+*"I need to procure data services for the Department of Health via open tender. It will be a contract notice, approximately 18 months duration, starting mid-2024."*
 
-I'll ask for anything missing.`;
+I'll ask if anything critical is missing.`;
   document.getElementById('intro-bubble').innerHTML = marked.parse(introText);
 
   let sessionId      = null;
