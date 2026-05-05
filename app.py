@@ -17,6 +17,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 import uuid
 from typing import Any, Optional
 
@@ -29,6 +30,9 @@ from pydantic import BaseModel
 
 os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 load_dotenv()
+
+from metrics.cloud_logger import TenderMetricsLogger
+_metrics = TenderMetricsLogger.get()
 
 app = FastAPI(title="Tender Price Prediction Agent")
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -210,9 +214,9 @@ TOOLS = [
 
 # ── ML prediction (reuses ml_runner subprocess) ───────────────────────────────
 
-def _run_ml_prediction(contract: dict, model_key: str | None = None) -> dict:
-    """Call the ML pipeline in a subprocess (isolates XGBoost/OpenMP from async)."""
-    import time
+def _run_ml_prediction(contract: dict, model_key: str | None = None) -> tuple[dict, float]:
+    """Call the ML pipeline in a subprocess (isolates XGBoost/OpenMP from async).
+    Returns (result_dict, latency_ms)."""
     from ml_evaluation.evaluator import get_active_model
     key    = model_key or get_active_model()
     runner = os.path.join(os.path.dirname(__file__), "tools", "ml_runner.py")
@@ -222,16 +226,20 @@ def _run_ml_prediction(contract: dict, model_key: str | None = None) -> dict:
         capture_output=True, text=True, timeout=60,
         env={**os.environ, "KMP_DUPLICATE_LIB_OK": "TRUE"},
     )
-    print(f"[timing] ML subprocess: {time.time() - t0:.1f}s", flush=True)
+    latency_ms = (time.time() - t0) * 1000
+    print(f"[timing] ML subprocess: {latency_ms/1000:.1f}s", flush=True)
     if result.returncode != 0 or not result.stdout.strip():
         raise RuntimeError(result.stderr or "ML runner returned no output")
-    return json.loads(result.stdout)
+    return json.loads(result.stdout), latency_ms
 
 
-def _run_langchain_report(contract: dict, ml_results: dict) -> tuple[str, list[dict], dict]:
+def _run_langchain_report(
+    contract: dict, ml_results: dict
+) -> tuple[str, list[dict], dict, dict]:
     """
-    Generate the full briefing report via the three-node LangGraph pipeline.
-    Returns (report_text, similar_contracts, knn_range).
+    Generate the full briefing report via the LangGraph pipeline.
+    Returns (report_text, similar_contracts, knn_range, llm_metrics).
+    llm_metrics: {analysis_latency_ms, reporting_latency_ms, input_tokens, output_tokens}
     """
     from langchain_agents.graph import get_graph
 
@@ -247,10 +255,17 @@ def _run_langchain_report(contract: dict, ml_results: dict) -> tuple[str, list[d
         "errors":                 [],
     }
     result = get_graph().invoke(initial)
+    llm_metrics = {
+        "analysis_latency_ms":  result.get("analysis_latency_ms", 0),
+        "reporting_latency_ms": result.get("reporting_latency_ms", 0),
+        "input_tokens":         result.get("total_input_tokens", 0),
+        "output_tokens":        result.get("total_output_tokens", 0),
+    }
     return (
         result.get("report", "Report generation failed."),
         result.get("similar_contracts", []),
         result.get("knn_range", {}),
+        llm_metrics,
     )
 
 
@@ -265,8 +280,9 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     session_id: str
     reply: str
-    report: Optional[str] = None        # full briefing report (when prediction runs)
-    prediction: Optional[dict] = None   # raw ML numbers
+    report: Optional[str] = None             # full briefing report (when prediction runs)
+    prediction: Optional[dict] = None        # raw ML numbers
+    extracted_contract: Optional[dict] = None  # fields the agent extracted from NL
 
 
 # ── Chat endpoint ──────────────────────────────────────────────────────────────
@@ -280,13 +296,22 @@ def chat(req: ChatRequest):
 
     report     = None
     prediction = None
+    contract   = None
     reply      = ""
+    _request_t0 = time.time()
 
     # Agentic loop — handles tool use transparently
-    import time as _time
     messages = list(history)
+    turn = 0
+    print(f"\n{'='*60}", flush=True)
+    print(f"[trace] NEW REQUEST  session={session_id[:8]}", flush=True)
+    print(f"[trace] USER: {req.message[:200]}", flush=True)
+    print(f"{'='*60}", flush=True)
+
     while True:
-        _t = _time.time()
+        turn += 1
+        print(f"\n[trace] ── Turn {turn}: calling Claude ──", flush=True)
+        _t = time.time()
         response = _client.messages.create(
             model=os.environ.get("LLM_MODEL", "claude-sonnet-4-6"),
             max_tokens=2048,
@@ -294,14 +319,25 @@ def chat(req: ChatRequest):
             tools=TOOLS,
             messages=messages,
         )
+        _agent_latency_ms = (time.time() - _t) * 1000
+        print(f"[timing] Claude API call: {_agent_latency_ms/1000:.1f}s  stop_reason={response.stop_reason}", flush=True)
+        _metrics.log_llm_call(
+            session_id=session_id,
+            node=f"agent_turn_{turn}",
+            latency_ms=_agent_latency_ms,
+            input_tokens=getattr(response.usage, "input_tokens", 0),
+            output_tokens=getattr(response.usage, "output_tokens", 0),
+            model=os.environ.get("LLM_MODEL", "claude-sonnet-4-6"),
+        )
 
-        print(f"[timing] Claude API call: {_time.time() - _t:.1f}s", flush=True)
         # Collect any text from this response turn
         for block in response.content:
-            if block.type == "text":
+            if block.type == "text" and block.text.strip():
+                print(f"[trace] CLAUDE TEXT: {block.text[:300]}", flush=True)
                 reply += block.text
 
         if response.stop_reason != "tool_use":
+            print(f"[trace] ── Claude finished (no more tool calls) ──", flush=True)
             break
 
         # Handle tool calls
@@ -310,15 +346,29 @@ def chat(req: ChatRequest):
             if block.type != "tool_use":
                 continue
 
+            print(f"\n[trace] TOOL CALL: {block.name}", flush=True)
+
             # Domain lookup tool
             if block.name == "lookup_procurement_codes":
                 from tools.domain_tools import lookup_procurement_codes
-                _t_rag = _time.time()
-                result = lookup_procurement_codes.invoke({
-                    "description": block.input.get("description", ""),
-                    "field":       block.input.get("field", "all"),
-                })
-                print(f"[timing] lookup_procurement_codes: {_time.time() - _t_rag:.1f}s", flush=True)
+                desc  = block.input.get("description", "")
+                field = block.input.get("field", "all")
+                print(f"[trace]   description: {desc}", flush=True)
+                print(f"[trace]   field:       {field}", flush=True)
+                _t_rag = time.time()
+                result = lookup_procurement_codes.invoke({"description": desc, "field": field})
+                _rag_ms = (time.time() - _t_rag) * 1000
+                print(f"[timing] lookup_procurement_codes: {_rag_ms/1000:.1f}s", flush=True)
+                _metrics.log_rag_call(
+                    session_id=session_id,
+                    field=field,
+                    latency_ms=_rag_ms,
+                )
+                try:
+                    top = json.loads(result)[:2] if isinstance(json.loads(result), list) else result
+                    print(f"[trace]   RAG result (top 2): {top}", flush=True)
+                except Exception:
+                    print(f"[trace]   RAG result: {str(result)[:200]}", flush=True)
                 tool_results.append({
                     "type":        "tool_result",
                     "tool_use_id": block.id,
@@ -337,14 +387,54 @@ def chat(req: ChatRequest):
                 "publisher_name":          block.input.get("publisher_name",          "unknown"),
                 "duration_days":           block.input.get("duration_days"),
             }
+            print(f"[trace]   extracted contract fields:", flush=True)
+            for k, v in contract.items():
+                if k != "is_consultancy_services":
+                    print(f"[trace]     {k}: {v}", flush=True)
 
             try:
-                ml_results = _run_ml_prediction(contract, model_key=req.model_key)
+                print(f"\n[trace] ── ML prediction ──", flush=True)
+                ml_results, ml_latency_ms = _run_ml_prediction(contract, model_key=req.model_key)
                 prediction = ml_results
+                reg = ml_results.get("regression", {})
+                print(f"[trace]   point estimate: ${reg.get('point_estimate_aud', 0):,.0f}", flush=True)
+                print(f"[trace]   confidence:     {ml_results.get('validation', {}).get('confidence', 'N/A')}", flush=True)
 
-                report, similar, knn_range = _run_langchain_report(contract, ml_results)
+                print(f"\n[trace] ── LangGraph pipeline (KNN + report) ──", flush=True)
+                report, similar, knn_range, llm_metrics = _run_langchain_report(contract, ml_results)
+                print(f"[trace]   KNN range: {knn_range.get('low_formatted', 'N/A')} – {knn_range.get('high_formatted', 'N/A')}  (median {knn_range.get('median_formatted', 'N/A')})", flush=True)
+                print(f"[trace]   similar contracts found: {len(similar)}", flush=True)
+
+                # Log per-node LLM calls
+                if llm_metrics.get("analysis_latency_ms"):
+                    _metrics.log_llm_call(
+                        session_id=session_id,
+                        node="analysis",
+                        latency_ms=llm_metrics["analysis_latency_ms"],
+                        input_tokens=llm_metrics.get("input_tokens", 0) // 2,
+                        output_tokens=llm_metrics.get("output_tokens", 0) // 2,
+                    )
+                if llm_metrics.get("reporting_latency_ms"):
+                    _metrics.log_llm_call(
+                        session_id=session_id,
+                        node="reporting",
+                        latency_ms=llm_metrics["reporting_latency_ms"],
+                        input_tokens=llm_metrics.get("input_tokens", 0) // 2,
+                        output_tokens=llm_metrics.get("output_tokens", 0) // 2,
+                    )
+
+                # Log the full prediction event
+                _metrics.log_prediction(
+                    session_id=session_id,
+                    contract=contract,
+                    ml_results=ml_results,
+                    knn_range=knn_range,
+                    ml_latency_ms=ml_latency_ms,
+                    total_latency_ms=(time.time() - _request_t0) * 1000,
+                )
+
                 tool_output = json.dumps({
-                    "regression":        ml_results.get("regression", {}),
+                    "regression":        reg,
                     "knn_range":         knn_range,
                     "validation":        ml_results.get("validation", {}),
                     "similar_contracts": similar,
@@ -373,6 +463,7 @@ def chat(req: ChatRequest):
         reply=reply,
         report=report,
         prediction=prediction,
+        extracted_contract=contract if contract else None,
     )
 
 

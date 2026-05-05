@@ -31,3 +31,9 @@ class TenderState(TypedDict):
     # ── Accumulated across all nodes ───────────────────────────────────────────
     messages: Annotated[list[BaseMessage], operator.add]
     errors: list[str]
+
+    # ── Metrics (populated by each node, consumed by app.py) ───────────────────
+    analysis_latency_ms: float
+    reporting_latency_ms: float
+    total_input_tokens: int
+    total_output_tokens: int

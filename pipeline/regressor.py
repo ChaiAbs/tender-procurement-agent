@@ -111,9 +111,14 @@ class Regressor(PipelineStep):
         if self.model is None:
             self._load()
 
+        print(f"[trace] │   ┌── Regressor.predict()  [{self.model_key}]", file=__import__("sys").stderr, flush=True)
+        print(f"[trace] │   │   Purpose: run XGBoost/LightGBM/CatBoost on encoded features", file=__import__("sys").stderr, flush=True)
+        print(f"[trace] │   │            predict log1p(value), then expm1 back to AUD", file=__import__("sys").stderr, flush=True)
         X = self._apply_encoding(X_infer)
         log_pred  = float(self.model.predict(X)[0])
         point_est = float(np.expm1(log_pred))
+        print(f"[trace] │   │   log_pred={log_pred:.4f}  →  point_estimate=${point_est:,.0f}", file=__import__("sys").stderr, flush=True)
+        print(f"[trace] │   └── Regressor.predict() done", file=__import__("sys").stderr, flush=True)
 
         rmse    = self.train_rmse or 1.3
         ci_low  = float(np.expm1(log_pred - 1.645 * rmse))

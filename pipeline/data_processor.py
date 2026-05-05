@@ -98,13 +98,20 @@ class DataProcessor(PipelineStep):
 
         contract = dict(contract)  # don't mutate caller's dict
 
+        print(f"[trace] │   ┌── DataProcessor.preprocess_single()", file=__import__('sys').stderr, flush=True)
+        print(f"[trace] │   │   Purpose: convert raw contract dict → encoded feature row", file=__import__("sys").stderr, flush=True)
+        print(f"[trace] │   │            auto-fill missing cofog/portfolio from publisher lookup", file=__import__("sys").stderr, flush=True)
+        print(f"[trace] │   │            impute missing duration with training median", file=__import__("sys").stderr, flush=True)
+
         # Auto-fill portfolio and cofog from publisher_name lookup
         pub_name = str(contract.get("publisher_name", "unknown")).strip().lower()
         lookup = self._publisher_lookup.get(pub_name, {})
         if not contract.get("publisher_portfolio") or contract["publisher_portfolio"] in (None, "", "unknown"):
             contract["publisher_portfolio"] = lookup.get("publisher_portfolio", "unknown")
+            print(f"[trace] │   │   publisher_portfolio auto-filled: {contract['publisher_portfolio']}", file=__import__("sys").stderr, flush=True)
         if not contract.get("publisher_cofog_level") or contract["publisher_cofog_level"] in (None, "", "unknown"):
             contract["publisher_cofog_level"] = lookup.get("publisher_cofog_level", "unknown")
+            print(f"[trace] │   │   publisher_cofog_level auto-filled: {contract['publisher_cofog_level']}", file=__import__("sys").stderr, flush=True)
 
         # Compute or impute duration_days
         if not contract.get("duration_days") or contract["duration_days"] in (None, "", "unknown"):
@@ -119,10 +126,12 @@ class DataProcessor(PipelineStep):
             else:
                 contract["duration_days"] = self._duration_median
 
+        print(f"[trace] │   │   duration_days={contract.get('duration_days')}  category_code={contract.get('category_code')}", file=__import__("sys").stderr, flush=True)
         row = pd.DataFrame([contract])
         row = self._clean_features(row)
         row = self._compute_duration(row, fit=False)
         X, _ = self._encode_features(row, fit=False)
+        print(f"[trace] │   └── preprocess_single() done → feature row shape {X.shape}", file=__import__("sys").stderr, flush=True)
         return X
 
     # ── Private helpers ────────────────────────────────────────────────────────
